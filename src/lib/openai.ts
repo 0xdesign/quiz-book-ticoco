@@ -1,15 +1,20 @@
 import OpenAI from 'openai'
 import { QuizData } from './supabase'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-})
+// Create OpenAI instance only if API key is available
+let openai: OpenAI | null = null
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('Missing OPENAI_API_KEY environment variable')
+if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'demo_key') {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
 }
 
 export async function generateStory(quizData: QuizData): Promise<string> {
+  // Return mock story in demo mode
+  if (!openai) {
+    return generateMockStory(quizData)
+  }
   // Build character descriptions
   let characterContext = ''
   if (quizData.characters && quizData.characters.length > 0) {
@@ -105,4 +110,30 @@ function getStoryTone(type: string): string {
     'A calm, soothing bedtime story': 'peaceful and gentle'
   }
   return toneMap[type] || 'engaging and positive'
+}
+
+// Generate mock story for demo mode
+function generateMockStory(quizData: QuizData): string {
+  const { childName, childAge, childTraits, message, storyType } = quizData
+  const traits = childTraits.join(', ')
+  
+  return `Once upon a time, there was a wonderful ${childAge}-year-old named ${childName} who was known for being ${traits}.
+
+${childName} lived in a magical place where every day brought new adventures. One sunny morning, ${childName} woke up with excitement, knowing that today would be special.
+
+As ${childName} stepped outside, the world seemed to sparkle with possibilities. Being naturally ${traits}, ${childName} was ready for whatever the day might bring.
+
+The first person ${childName} met was a wise old owl who said, "Dear ${childName}, today you will discover something amazing about yourself." This made ${childName} even more curious and excited.
+
+${childName} began exploring the enchanted forest nearby, where the trees whispered secrets and the flowers danced in the breeze. With each step, ${childName} felt more confident and brave.
+
+Suddenly, ${childName} heard a small voice calling for help. It was a tiny rabbit who had lost its way home. Without hesitation, ${childName} used their ${traits} nature to help the frightened creature.
+
+As ${childName} helped the rabbit find its family, more forest animals appeared, each needing assistance in their own way. ${childName} helped them all with kindness and creativity.
+
+The animals were so grateful that they decided to throw a surprise celebration for ${childName}. They danced and sang, praising ${childName} for being such a wonderful friend.
+
+As the sun began to set, ${childName} realized that the wise owl had been right. The amazing discovery was understanding that ${message}.
+
+From that day forward, ${childName} continued to share their special gifts with the world, always remembering that being ${traits} made them truly unique and loved.`
 }

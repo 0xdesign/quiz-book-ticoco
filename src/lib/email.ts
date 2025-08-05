@@ -1,9 +1,10 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
+// Create resend instance only if API key is available
+let resend: Resend | null = null
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error('Missing RESEND_API_KEY environment variable')
+if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'demo_resend_key') {
+  resend = new Resend(process.env.RESEND_API_KEY)
 }
 
 export async function sendEmail(options: {
@@ -15,6 +16,11 @@ export async function sendEmail(options: {
     content: string
   }>
 }) {
+  if (!resend) {
+    console.log('📧 Email (demo mode):', { to: options.to, subject: options.subject })
+    return { id: 'demo_email_' + Date.now() }
+  }
+  
   return resend.emails.send({
     from: 'Ticoco <stories@ticoco.app>',
     to: options.to,
@@ -34,6 +40,11 @@ export async function sendStoryEmail({
 }) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
   const downloadUrl = `${baseUrl}/download/${downloadToken}`
+  
+  if (!resend) {
+    console.log('📧 Story email (demo mode):', { to, childName, downloadUrl })
+    return { id: 'demo_story_email_' + Date.now() }
+  }
   
   await resend.emails.send({
     from: 'Ticoco <stories@ticoco.app>',

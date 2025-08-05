@@ -1,9 +1,10 @@
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+// Create stripe instance only if API key is available
+let stripe: Stripe | null = null
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing STRIPE_SECRET_KEY environment variable')
+if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'demo_key') {
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 }
 
 export { stripe }
