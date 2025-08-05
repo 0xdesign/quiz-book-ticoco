@@ -4,10 +4,16 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import { DEMO_MODE } from '@/lib/demo-config'
+import DemoCheckoutPage from './demo-page'
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_demo')
 
 export default function CheckoutPage() {
+  if (DEMO_MODE) {
+    return <DemoCheckoutPage />
+  }
+  
   return (
     <Elements stripe={stripePromise}>
       <CheckoutForm />

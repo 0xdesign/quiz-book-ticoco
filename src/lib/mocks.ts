@@ -6,7 +6,7 @@
 import { QuizData } from './supabase'
 
 // Environment check for mock mode
-export const IS_MOCK_MODE = process.env.NODE_ENV === 'development' && !process.env.OPENAI_API_KEY
+export const IS_MOCK_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true' || process.env.FORCE_MOCK_MODE === 'true' || (process.env.NODE_ENV === 'development' && !process.env.OPENAI_API_KEY)
 
 // Mock story templates based on story type and age
 const STORY_TEMPLATES = {

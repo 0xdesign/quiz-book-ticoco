@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import QuizForm, { QuizData } from '@/components/QuizForm'
 import { useRouter } from 'next/navigation'
+import { createStoryClient } from '@/lib/client-services'
+import { DEMO_MODE } from '@/lib/demo-config'
 
 export default function Home() {
   const [loading, setLoading] = useState(false)
@@ -13,23 +15,34 @@ export default function Home() {
     try {
       setLoading(true)
       
-      // Create book record and generate story
-      const response = await fetch('/api/create-story', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(quizData),
-      })
+      if (DEMO_MODE) {
+        // Use client-side service for demo
+        const { bookId } = await createStoryClient(quizData)
+        
+        // Add a small delay to simulate processing
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        
+        // Redirect to payment page
+        router.push(`/checkout/${bookId}`)
+      } else {
+        // Use API route for production
+        const response = await fetch('/api/create-story', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(quizData),
+        })
 
-      if (!response.ok) {
-        throw new Error('Failed to create story')
+        if (!response.ok) {
+          throw new Error('Failed to create story')
+        }
+
+        const { bookId } = await response.json()
+        
+        // Redirect to payment page
+        router.push(`/checkout/${bookId}`)
       }
-
-      const { bookId } = await response.json()
-      
-      // Redirect to payment page
-      router.push(`/checkout/${bookId}`)
     } catch (error) {
       console.error('Error creating story:', error)
       alert('Something went wrong. Please try again.')

@@ -12,7 +12,10 @@
     "test:coverage": "jest --coverage",
     "test:quiz": "jest --testPathPattern=quiz",
     "test:pdf": "jest --testPathPattern=pdf",
-    "test:services": "jest --testPathPattern=services"
+    "test:services": "jest --testPathPattern=services",
+    "build:demo": "cp .env.demo .env.local && next build",
+    "export": "next export",
+    "deploy:github": "npm run build:demo && touch out/.nojekyll && gh-pages -d out -t true"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -34,15 +37,16 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/jest": "^29.5.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/jest": "^29.5.13",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/user-event": "^14.5.2",
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
+    "gh-pages": "^6.3.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "tailwindcss": "^4",

@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { getBookClient, generatePDFClient, createDownloadTokenClient } from '@/lib/client-services'
+import { DEMO_MODE } from '@/lib/demo-config'
 
 export default function SuccessPage() {
   const [book, setBook] = useState<Record<string, any> | null>(null)
   const [loading, setLoading] = useState(true)
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const params = useParams()
   
   const bookId = params.bookId as string
@@ -16,15 +19,38 @@ export default function SuccessPage() {
 
   const fetchBook = async () => {
     try {
-      const response = await fetch(`/api/books/${bookId}`)
-      if (response.ok) {
-        const bookData = await response.json()
+      if (DEMO_MODE) {
+        // Use client-side service for demo
+        const bookData = await getBookClient(bookId)
         setBook(bookData)
+        
+        // Generate download URL for demo
+        const token = await createDownloadTokenClient(bookId)
+        setDownloadUrl(`/download/${token}`)
+      } else {
+        // Use API for production
+        const response = await fetch(`/api/books/${bookId}`)
+        if (response.ok) {
+          const bookData = await response.json()
+          setBook(bookData)
+        }
       }
     } catch (error) {
       console.error('Error fetching book:', error)
     } finally {
       setLoading(false)
+    }
+  }
+  
+  const handleDownload = async () => {
+    if (DEMO_MODE && book) {
+      const pdf = await generatePDFClient(bookId)
+      const url = URL.createObjectURL(pdf)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${book.quiz_data?.childName || 'story'}-story.txt`
+      a.click()
+      URL.revokeObjectURL(url)
     }
   }
 
@@ -98,6 +124,21 @@ export default function SuccessPage() {
               </div>
             </div>
           </div>
+          
+          {/* Demo Download Button */}
+          {DEMO_MODE && book && (
+            <div className="mt-6 pt-6 border-t">
+              <button
+                onClick={handleDownload}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
+              >
+                Download Story Now
+              </button>
+              <p className="text-sm text-gray-500 mt-2">
+                (Demo: Downloads as text file)
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Story Details */}
