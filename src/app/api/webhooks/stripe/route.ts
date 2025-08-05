@@ -9,6 +9,12 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 export async function POST(request: NextRequest) {
   try {
+    // Handle demo mode
+    if (!stripe) {
+      console.log('📧 Webhook (demo mode): Stripe webhook received')
+      return NextResponse.json({ received: true, demo: true })
+    }
+    
     const body = await request.text()
     const headersList = await headers()
     const signature = headersList.get('stripe-signature')

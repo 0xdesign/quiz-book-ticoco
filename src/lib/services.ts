@@ -35,6 +35,10 @@ export const stripeService = {
       return mockStripe.createPaymentIntent(amount, currency)
     }
     
+    if (!stripe) {
+      throw new Error('Stripe is not configured')
+    }
+    
     return stripe.paymentIntents.create({
       amount,
       currency,
@@ -48,6 +52,10 @@ export const stripeService = {
     if (IS_MOCK_MODE) {
       console.log('💳 Using mock Stripe service for retrieval')
       return mockStripe.confirmPayment(paymentIntentId)
+    }
+    
+    if (!stripe) {
+      throw new Error('Stripe is not configured')
     }
     
     return stripe.paymentIntents.retrieve(paymentIntentId)
