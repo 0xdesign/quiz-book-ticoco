@@ -39,7 +39,7 @@ class OptimizedPDFService {
     console.log(`Initial memory usage: ${(initialMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`)
     
     return new Promise(async (resolve, reject) => {
-      let doc: PDFDocument | null = null
+      let doc: any = null
       let stream: PassThrough | null = null
       let uploadStream: any = null
       
