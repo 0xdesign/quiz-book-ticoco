@@ -174,8 +174,6 @@ Your stories are known for their vivid imagery, perfect pacing, and meaningful m
   }
   
   private optimizePromptForConsistency(quizData: QuizData, attempt: number): string {
-
-  private optimizePromptForConsistency(quizData: QuizData, attempt: number): string {
     // Build character descriptions with consistent formatting
     let characterContext = ''
     if (quizData.characters && quizData.characters.length > 0) {
