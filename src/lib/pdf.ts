@@ -169,7 +169,7 @@ class OptimizedPDFService {
    * Generate PDF content in chunks
    */
   private async generatePDFContent(
-    doc: PDFDocument,
+    doc: any,
     storyText: string,
     childName: string,
     options: PDFGenerationOptions
