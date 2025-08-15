@@ -399,5 +399,6 @@ export async function generateStory(quizData: QuizData): Promise<string> {
     // Return a fallback story
     return `Once upon a time, ${quizData.childName} went on an amazing adventure...`
   }
+}
 
 export { OptimizedOpenAIService }
