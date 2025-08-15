@@ -370,7 +370,8 @@ class StoryValidator {
     // Age appropriateness (based on sentence complexity)
     const sentences = story.split(/[.!?]+/).filter(s => s.trim())
     const avgSentenceLength = story.split(/\s+/).length / sentences.length
-    const targetLength = quizData.childAge <= 5 ? 10 : quizData.childAge <= 8 ? 12 : 15
+    const age = parseInt(quizData.childAge)
+    const targetLength = age <= 5 ? 10 : age <= 8 ? 12 : 15
     const ageScore = 1 - Math.abs(avgSentenceLength - targetLength) / targetLength
     
     const overall = (nameUsage + themeScore + messageIntegration + ageScore) / 4
