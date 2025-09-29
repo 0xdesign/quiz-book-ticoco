@@ -4,16 +4,13 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
-import { DEMO_MODE } from '@/lib/demo-config'
-import DemoCheckoutPage from './demo-page'
+import { TrustBadges } from '@/components/ui/TrustBadges'
+import { ExitIntentModal } from '@/components/ExitIntentModal'
+// Demo mode removed; always use real Stripe flow
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_demo')
 
 export default function CheckoutClient() {
-  if (DEMO_MODE) {
-    return <DemoCheckoutPage />
-  }
-  
   return (
     <Elements stripe={stripePromise}>
       <CheckoutForm />
@@ -26,7 +23,7 @@ function CheckoutForm() {
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [storyReady, setStoryReady] = useState(false)
+  const [storyReady, setStoryReady] = useState(true)
   
   const params = useParams()
   const router = useRouter()
@@ -37,9 +34,6 @@ function CheckoutForm() {
 
   useEffect(() => {
     fetchBook()
-    // Check story generation status every 5 seconds
-    const interval = setInterval(checkStoryStatus, 5000)
-    return () => clearInterval(interval)
   }, [bookId])
 
   const fetchBook = async () => {
@@ -56,21 +50,6 @@ function CheckoutForm() {
       console.error('Error fetching book:', error)
       setError('Story not found')
       setLoading(false)
-    }
-  }
-
-  const checkStoryStatus = async () => {
-    try {
-      const response = await fetch(`/api/books/${bookId}`)
-      if (response.ok) {
-        const bookData = await response.json()
-        if (bookData.story_text && !storyReady) {
-          setStoryReady(true)
-          setBook(bookData)
-        }
-      }
-    } catch (error) {
-      console.error('Error checking story status:', error)
     }
   }
 
@@ -119,7 +98,11 @@ function CheckoutForm() {
       }
 
       // Confirm payment
-      const { error: confirmError } = await stripe.confirmCardPayment(clientSecret)
+      const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: {
+          card: cardElement
+        }
+      })
 
       if (confirmError) {
         setError(confirmError.message || 'Payment confirmation failed')
@@ -127,7 +110,7 @@ function CheckoutForm() {
         return
       }
 
-      // Payment successful
+      // Redirect to success page after confirmation
       router.push(`/success/${bookId}`)
     } catch (error) {
       console.error('Payment error:', error)
@@ -166,57 +149,58 @@ function CheckoutForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Story Status */}
-        <div className="bg-white rounded-2xl p-6 mb-6 shadow-lg">
-          <div className="flex items-center gap-4 mb-4">
-            <div className={`w-4 h-4 rounded-full ${storyReady ? 'bg-green-500' : 'bg-yellow-500'}`}>
-              {!storyReady && <div className="w-4 h-4 animate-pulse bg-yellow-500 rounded-full"></div>}
+    <div>
+      <ExitIntentModal bookId={bookId} childName={book?.quiz_data?.childName} />
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-12 px-4">
+        <div className="max-w-2xl mx-auto">
+        {/* Story Summary */}
+        <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl p-8 mb-8 shadow-lg">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-800">
-                {storyReady ? '✅ Story Ready!' : '⏳ Creating Story...'}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {storyReady 
-                  ? `${book?.quiz_data?.childName}'s personalized adventure is complete`
-                  : `We're crafting ${book?.quiz_data?.childName}'s magical story`
-                }
-              </p>
-            </div>
+            <h3 className="font-bold text-xl text-gray-900">Story Ready!</h3>
           </div>
+          <p className="text-base text-gray-700 leading-relaxed">{book?.quiz_data?.childName}'s personalized story looks amazing. Complete your purchase to receive the PDF via email.</p>
         </div>
 
         {/* Order Summary */}
-        <div className="bg-white rounded-2xl p-6 mb-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Order Summary</h2>
-          
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Personalized Story for:</span>
-              <span className="font-medium">{book?.quiz_data?.childName}</span>
+        <div className="bg-white rounded-2xl p-8 mb-8 shadow-xl border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Order Summary</h2>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center py-3 border-b border-gray-100">
+              <span className="text-gray-700 font-medium">Personalized Story for:</span>
+              <span className="font-bold text-gray-900">{book?.quiz_data?.childName}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Age:</span>
-              <span className="font-medium">{book?.quiz_data?.childAge}</span>
+            <div className="flex justify-between items-center py-3 border-b border-gray-100">
+              <span className="text-gray-700 font-medium">Age:</span>
+              <span className="font-bold text-gray-900">{book?.quiz_data?.childAge}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Story Type:</span>
-              <span className="font-medium text-sm">
+            <div className="flex justify-between items-center py-3 border-b border-gray-100">
+              <span className="text-gray-700 font-medium">Story Type:</span>
+              <span className="font-bold text-gray-900 text-sm">
                 {book?.quiz_data?.storyType || 'Magical Adventure'}
               </span>
             </div>
-            <div className="border-t pt-3 flex justify-between text-lg font-bold">
-              <span>Total:</span>
+            <div className="border-t-2 border-gray-200 pt-4 flex justify-between items-center text-2xl font-bold">
+              <span className="text-gray-900">Total:</span>
               <span className="text-blue-600">$19.99</span>
             </div>
           </div>
         </div>
 
         {/* Payment Form */}
-        <div className="bg-white rounded-2xl p-6 shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Payment Information</h2>
+        <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100">
+          <h2 className="text-2xl font-bold text-gray-900 mb-3">Secure Payment 🔒</h2>
+          <p className="text-base text-gray-700 mb-6 leading-relaxed">
+            All payments are encrypted and processed securely by Stripe. We never store your card details.
+          </p>
+          <div className="mb-8">
+            <TrustBadges context="checkout" />
+          </div>
           
           <form onSubmit={handleSubmit}>
             <div className="mb-6">
@@ -230,9 +214,6 @@ function CheckoutForm() {
                       base: {
                         fontSize: '16px',
                         color: '#424770',
-                        '::placeholder': {
-                          color: '#aab7c4',
-                        },
                       },
                     },
                   }}
@@ -264,27 +245,28 @@ function CheckoutForm() {
 
             <button
               type="submit"
-              disabled={!stripe || processing || !storyReady}
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-lg py-4 rounded-xl shadow-lg hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              disabled={!stripe || processing}
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-xl py-5 rounded-xl shadow-2xl hover:from-blue-600 hover:to-purple-600 hover:shadow-3xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
             >
               {processing ? (
                 <div className="flex items-center justify-center gap-2">
-                  <div className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                  <div className="animate-spin w-6 h-6 border-4 border-white border-t-transparent rounded-full"></div>
                   Processing Payment...
                 </div>
               ) : !storyReady ? (
                 'Waiting for Story to Complete...'
               ) : (
-                'Complete Purchase - $19.99'
+                'Get My Story Now - $19.99'
               )}
             </button>
 
-            <p className="text-xs text-gray-500 text-center mt-3">
-              Secure payment powered by Stripe • Your story will be emailed instantly
+            <p className="text-sm text-gray-600 text-center mt-4 font-medium">
+              ✅ Instant delivery  💯 Secure payment by Stripe  🔒 Your data is protected
             </p>
           </form>
         </div>
       </div>
+    </div>
     </div>
   )
 }

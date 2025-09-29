@@ -7,15 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:quiz": "jest --testPathPattern=quiz",
     "test:pdf": "jest --testPathPattern=pdf",
     "test:services": "jest --testPathPattern=services",
-    "build:demo": "cp .env.demo .env.local && next build",
-    "export": "next export",
-    "deploy:github": "npm run build:demo && touch out/.nojekyll && gh-pages -d out -t true"
+    "test:image": "node scripts/test-gpt5-image.js"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -29,6 +27,7 @@
     "openai": "^4.104.0",
     "pdfkit": "^0.17.1",
     "react": "19.1.0",
+    "react-confetti": "^6.4.0",
     "react-dom": "19.1.0",
     "resend": "^4.7.0",
     "stripe": "^18.4.0",

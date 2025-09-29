@@ -22,6 +22,21 @@ export interface ValidationResult {
 export function validateQuizData(data: Partial<QuizData>): ValidationResult {
   const errors: ValidationError[] = []
 
+  // Validate required story description
+  if (!data.storyDescription || !data.storyDescription.trim()) {
+    errors.push({
+      field: 'storyDescription',
+      message: 'Please enter a brief description of the story you want',
+      code: 'REQUIRED'
+    })
+  } else if (data.storyDescription.length > 1500) {
+    errors.push({
+      field: 'storyDescription',
+      message: 'Description is too long (max 1500 characters)',
+      code: 'MAX_LENGTH'
+    })
+  }
+
   // Validate child name
   if (!data.childName) {
     errors.push({
@@ -210,6 +225,16 @@ export function validateField(field: string, value: any, context?: Partial<QuizD
         })
       }
       break
+
+    case 'storyDescription':
+      if (typeof value === 'string' && value.length > 1500) {
+        errors.push({
+          field: 'storyDescription',
+          message: 'Description is too long (max 1500 characters)',
+          code: 'MAX_LENGTH'
+        })
+      }
+      break
   }
 
   return {
@@ -255,7 +280,7 @@ export function validateSecurity(data: Partial<QuizData>): ValidationResult {
   const errors: ValidationError[] = []
 
   // Check for potentially malicious content
-  const textFields = ['childName', 'parentEmail']
+  const textFields = ['childName', 'parentEmail', 'storyDescription']
   const suspiciousPatterns = [
     /<script[^>]*>.*?<\/script>/gi,  // Script tags
     /javascript:/gi,                  // JavaScript URLs
@@ -281,7 +306,7 @@ export function validateSecurity(data: Partial<QuizData>): ValidationResult {
   })
 
   // Check for excessive length (potential DoS)
-  const maxTotalLength = 1000
+  const maxTotalLength = 2000
   const totalLength = Object.values(data)
     .filter(v => typeof v === 'string')
     .join('').length
@@ -315,23 +340,31 @@ function isValidEmail(email: string): boolean {
 }
 
 function isValidAge(age: string): boolean {
-  const validAges = ['3', '4', '5', '6', '7', '8', '9', '10', '11', '12']
-  return validAges.includes(age)
+  if (!age) return false
+  // Accept values like "5" or "5 years"
+  const match = age.match(/\d{1,2}/)
+  if (!match) return false
+  const num = parseInt(match[0], 10)
+  return num >= 3 && num <= 12
 }
 
 function areValidTraits(traits: string[]): boolean {
   const validTraits = [
-    'Brave', 'Kind', 'Funny', 'Smart', 'Creative', 'Athletic', 
-    'Curious', 'Helpful', 'Gentle', 'Adventurous', 'Artistic', 'Musical'
+    'Curious', 'Playful', 'Brave', 'Kind', 'Funny', 'Creative',
+    'Energetic', 'Gentle', 'Smart', 'Adventurous', 'Caring', 'Determined',
+    // Legacy/extended
+    'Athletic', 'Helpful', 'Artistic', 'Musical'
   ]
   return traits.every(trait => validTraits.includes(trait))
 }
 
 function areValidFavoriteThings(things: string[]): boolean {
   const validThings = [
-    'Animals', 'Space', 'Ocean', 'Forest', 'Cars', 'Dinosaurs',
-    'Princess', 'Dragons', 'Magic', 'Sports', 'Music', 'Art',
-    'Books', 'Adventure', 'Family', 'Friends'
+    'Animals', 'Space', 'Dinosaurs', 'Princesses', 'Pirates',
+    'Cars & Trucks', 'Sports', 'Music', 'Art', 'Nature',
+    'Superheroes', 'Magic',
+    // Legacy/extended
+    'Ocean', 'Forest', 'Cars', 'Books', 'Adventure', 'Family', 'Friends'
   ]
   return things.every(thing => validThings.includes(thing))
 }
@@ -370,6 +403,17 @@ export function sanitizeQuizData(data: Partial<QuizData>): Partial<QuizData> {
     parentEmail: data.parentEmail ? sanitizeInput(data.parentEmail.toLowerCase()) : undefined,
     childTraits: data.childTraits ? data.childTraits.map(trait => sanitizeInput(trait)) : undefined,
     favoriteThings: data.favoriteThings ? data.favoriteThings.map(thing => sanitizeInput(thing)) : undefined,
-    storyType: data.storyType ? sanitizeInput(data.storyType) : undefined
+    storyType: data.storyType ? sanitizeInput(data.storyType) : undefined,
+    storyDescription: data.storyDescription ? sanitizeLongText(data.storyDescription) : undefined
   }
+}
+
+export function sanitizeLongText(input: string): string {
+  if (typeof input !== 'string') return ''
+  return input
+    .trim()
+    .replace(/[<>]/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .substring(0, 1500)
 }

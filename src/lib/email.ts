@@ -3,7 +3,7 @@ import { Resend } from 'resend'
 // Create resend instance only if API key is available
 let resend: Resend | null = null
 
-if (process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'demo_resend_key') {
+if (process.env.RESEND_API_KEY) {
   resend = new Resend(process.env.RESEND_API_KEY)
 }
 
@@ -17,8 +17,7 @@ export async function sendEmail(options: {
   }>
 }) {
   if (!resend) {
-    console.log('📧 Email (demo mode):', { to: options.to, subject: options.subject })
-    return { id: 'demo_email_' + Date.now() }
+    throw new Error('Email service not configured. Set RESEND_API_KEY environment variable.')
   }
   
   return resend.emails.send({
@@ -42,8 +41,7 @@ export async function sendStoryEmail({
   const downloadUrl = `${baseUrl}/download/${downloadToken}`
   
   if (!resend) {
-    console.log('📧 Story email (demo mode):', { to, childName, downloadUrl })
-    return { id: 'demo_story_email_' + Date.now() }
+    throw new Error('Email service not configured. Set RESEND_API_KEY environment variable.')
   }
   
   await resend.emails.send({

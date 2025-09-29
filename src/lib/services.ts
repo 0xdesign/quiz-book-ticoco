@@ -1,10 +1,8 @@
 /**
- * Service layer that switches between real and mock implementations
- * based on environment configuration
+ * Service layer using real implementations
  */
 
 import { QuizData } from './supabase'
-import { IS_MOCK_MODE, mockOpenAI, mockStripe, mockEmail, mockSupabase } from './mocks'
 
 // Real service imports
 import { generateStory as realGenerateStory } from './openai'
@@ -16,12 +14,16 @@ import { sendEmail as realSendEmail } from './email'
  * OpenAI Service
  */
 export const openaiService = {
-  async generateStory(quizData: QuizData): Promise<string> {
-    if (IS_MOCK_MODE) {
-      console.log('🤖 Using mock OpenAI service')
-      return mockOpenAI.generateStory(quizData)
+  async generateStory(
+    quizData: QuizData,
+    opts?: {
+      model?: string
+      reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+      verbosity?: 'low' | 'medium' | 'high'
+      maxOutputTokens?: number
     }
-    return realGenerateStory(quizData)
+  ): Promise<string> {
+    return realGenerateStory(quizData, opts)
   }
 }
 
@@ -29,12 +31,7 @@ export const openaiService = {
  * Stripe Service
  */
 export const stripeService = {
-  async createPaymentIntent(amount: number, currency: string = 'usd') {
-    if (IS_MOCK_MODE) {
-      console.log('💳 Using mock Stripe service')
-      return mockStripe.createPaymentIntent(amount, currency)
-    }
-    
+  async createPaymentIntent(amount: number, currency: string = 'usd', metadata?: Record<string, string>) {
     if (!stripe) {
       throw new Error('Stripe is not configured')
     }
@@ -42,6 +39,7 @@ export const stripeService = {
     return stripe.paymentIntents.create({
       amount,
       currency,
+      metadata,
       automatic_payment_methods: {
         enabled: true,
       },
@@ -49,11 +47,6 @@ export const stripeService = {
   },
   
   async retrievePaymentIntent(paymentIntentId: string) {
-    if (IS_MOCK_MODE) {
-      console.log('💳 Using mock Stripe service for retrieval')
-      return mockStripe.confirmPayment(paymentIntentId)
-    }
-    
     if (!stripe) {
       throw new Error('Stripe is not configured')
     }
@@ -75,26 +68,15 @@ export const emailService = {
       content: string
     }>
   }) {
-    if (IS_MOCK_MODE) {
-      console.log('📧 Using mock email service')
-      return mockEmail.sendEmail(options)
-    }
-    
     return realSendEmail(options)
   },
   
   // Mock-only method for testing
   getSentEmails() {
-    if (IS_MOCK_MODE) {
-      return mockEmail.getSentEmails()
-    }
     return []
   },
   
   clearSentEmails() {
-    if (IS_MOCK_MODE) {
-      mockEmail.clearSentEmails()
-    }
   }
 }
 
@@ -103,11 +85,6 @@ export const emailService = {
  */
 export const databaseService = {
   async insertBook(bookData: any) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service')
-      return mockSupabase.insertBook(bookData)
-    }
-    
     const { data, error } = await supabase
       .from('books')
       .insert(bookData)
@@ -118,11 +95,6 @@ export const databaseService = {
   },
   
   async updateBook(bookId: string, updates: any) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service for update')
-      return mockSupabase.updateBook(bookId, updates)
-    }
-    
     const { data, error } = await supabase
       .from('books')
       .update(updates)
@@ -134,11 +106,6 @@ export const databaseService = {
   },
   
   async getBook(bookId: string) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service for retrieval')
-      return mockSupabase.getBook(bookId)
-    }
-    
     const { data, error } = await supabase
       .from('books')
       .select('*')
@@ -149,34 +116,11 @@ export const databaseService = {
   },
   
   async createDownloadToken(bookId: string) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service for download token')
-      return mockSupabase.createDownloadToken(bookId)
-    }
-    
-    const token = `dl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-    
-    const { data, error } = await supabase
-      .from('downloads')
-      .insert({
-        token,
-        book_id: bookId,
-        expires_at: expiresAt.toISOString(),
-        downloads_count: 0
-      })
-      .select()
-      .single()
-    
-    return { data, error }
+    // Download tokens are issued by webhook after payment
+    throw new Error('createDownloadToken is not supported. Tokens are created via webhook after payment is completed.')
   },
   
   async validateDownloadToken(token: string) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service for token validation')
-      return mockSupabase.validateDownloadToken(token)
-    }
-    
     const { data, error } = await supabase
       .from('downloads')
       .select('*')
@@ -188,23 +132,25 @@ export const databaseService = {
   },
   
   async incrementDownloadCount(token: string) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service for download count')
-      return mockSupabase.incrementDownloadCount(token)
-    }
-    
+    // Increment download count atomically
+    const { data: current, error: selErr } = await supabase
+      .from('downloads')
+      .select('*')
+      .eq('token', token)
+      .single()
+    if (selErr || !current) return { data: null, error: selErr }
+
     const { data, error } = await supabase
-      .rpc('increment_download_count', { download_token: token })
-    
+      .from('downloads')
+      .update({ downloads_count: (current.downloads_count || 0) + 1 })
+      .eq('token', token)
+      .select()
+      .single()
+
     return { data, error }
   },
   
   async logEvent(eventType: string, bookId?: string, metadata?: Record<string, unknown>) {
-    if (IS_MOCK_MODE) {
-      console.log('🗄️ Using mock database service for event logging')
-      return mockSupabase.logEvent(eventType, bookId, metadata)
-    }
-    
     const { data, error } = await supabase
       .from('events')
       .insert({
@@ -216,34 +162,6 @@ export const databaseService = {
       .single()
     
     return { data, error }
-  },
-  
-  // Mock-only methods for testing
-  getAllBooks() {
-    if (IS_MOCK_MODE) {
-      return mockSupabase.getAllBooks()
-    }
-    return []
-  },
-  
-  getAllDownloads() {
-    if (IS_MOCK_MODE) {
-      return mockSupabase.getAllDownloads()
-    }
-    return []
-  },
-  
-  getAllEvents() {
-    if (IS_MOCK_MODE) {
-      return mockSupabase.getAllEvents()
-    }
-    return []
-  },
-  
-  clearAllData() {
-    if (IS_MOCK_MODE) {
-      mockSupabase.clearAllData()
-    }
   }
 }
 
@@ -251,24 +169,5 @@ export const databaseService = {
  * Development utilities
  */
 export const devUtils = {
-  isMockMode: () => IS_MOCK_MODE,
-  
-  getMockData() {
-    if (!IS_MOCK_MODE) return null
-    
-    return {
-      books: databaseService.getAllBooks(),
-      downloads: databaseService.getAllDownloads(),
-      events: databaseService.getAllEvents(),
-      emails: emailService.getSentEmails()
-    }
-  },
-  
-  clearAllMockData() {
-    if (!IS_MOCK_MODE) return
-    
-    databaseService.clearAllData()
-    emailService.clearSentEmails()
-    console.log('🧹 All mock data cleared')
-  }
+  isMockMode: () => false
 }

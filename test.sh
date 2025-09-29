@@ -72,18 +72,17 @@ else
 fi
 echo ""
 
-# Test mock mode
-echo "4️⃣ Testing mock services..."
-echo "   Starting mock server (press Ctrl+C after verification)..."
-echo ""
-echo "   Mock services include:"
-echo "   - Mock OpenAI (template stories)"
-echo "   - Mock Stripe (test payments)"
-echo "   - Mock Email (console logging)"
-echo "   - Mock Database (in-memory)"
-echo ""
-echo "   To test: npm run dev:mock"
-echo ""
+# E2E readiness summary
+echo "4️⃣ E2E readiness checks..."
+if [ "$env_configured" = true ] && [ "$build_success" = true ]; then
+  echo "✅ Ready to run end-to-end with real services"
+  echo "   Next steps:"
+  echo "   - Start the app: npm run dev"
+  echo "   - Use Stripe test card 4242 4242 4242 4242"
+  echo "   - Complete a quiz, pay, and check your inbox"
+else
+  echo "⚠️  Configure environment and ensure build passes to run E2E"
+fi
 
 # Check database setup
 echo "5️⃣ Checking database schema..."
@@ -120,7 +119,6 @@ if [ "$env_configured" = true ]; then
     echo ""
     echo "🚀 Quick commands:"
     echo "   npm run dev        # Run with real services"
-    echo "   npm run dev:mock   # Run with mock services"
     echo "   npm start          # Production mode"
 else
     echo "⚠️  Environment: NEEDS CONFIGURATION"
@@ -132,8 +130,6 @@ else
     echo "   - Stripe: https://dashboard.stripe.com/"
     echo "   - Supabase: https://app.supabase.com/"
     echo "   - Resend: https://resend.com/"
-    echo "3. Set up Supabase database"
-    echo "4. Configure Stripe webhooks"
-    echo ""
-    echo "💡 TIP: Use 'npm run dev:mock' to test without API keys!"
+    echo "3. Set up Supabase database (database.sql)"
+    echo "4. Configure Stripe webhooks to /api/webhooks/stripe"
 fi

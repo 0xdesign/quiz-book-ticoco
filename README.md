@@ -5,16 +5,14 @@ A Next.js application that creates personalized children's books through an inte
 ## ✨ Features
 
 ### Core Features
-- **Interactive Quiz Flow**: Mobile-optimized 5-step quiz about the child
-- **AI Story Generation**: OpenAI GPT-4 creates personalized stories
+- **Interactive Quiz Flow**: Mobile-optimized 6-step quiz, beginning with a required free-form story description to guide the AI
+- **AI Story Generation**: OpenAI GPT-5 creates personalized stories
 - **PDF Generation**: High-quality text-based PDFs with custom formatting  
 - **Stripe Payment**: Secure $19.99 payment processing
 - **Email Delivery**: Automated PDF delivery with download links
 - **COPPA Compliance**: Required parental consent for children under 13
 
 ### Advanced Features
-- **Mock Services**: Full development environment without API keys
-- **Comprehensive Testing**: Jest test suite with 90%+ coverage
 - **Error Handling**: Robust error recovery with circuit breakers
 - **Performance Optimization**: Mobile-first design with 3G network support
 - **Data Validation**: Input sanitization and security measures
@@ -24,9 +22,9 @@ A Next.js application that creates personalized children's books through an inte
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
-- API keys (optional - mock services work without them)
+- API keys (required): OpenAI, Stripe, Supabase, Resend
 
 ### Installation
 
@@ -56,7 +54,7 @@ A Next.js application that creates personalized children's books through an inte
 ### Tech Stack
 - **Frontend**: Next.js 14, React 19, Tailwind CSS
 - **Backend**: Next.js API Routes, Serverless Functions
-- **AI**: OpenAI GPT-4 API
+- **AI**: OpenAI GPT-5 API
 - **Database**: Supabase (PostgreSQL)
 - **Payments**: Stripe API
 - **Email**: Resend API
@@ -74,42 +72,18 @@ quiz-book/
 │   ├── components/         # React components
 │   │   └── QuizForm.tsx   # Main quiz component
 │   └── lib/               # Utility libraries
-│       ├── services.ts    # Service layer with mocks
+│       ├── services.ts    # Service layer (real services only)
 │       ├── validation.ts  # Input validation
 │       ├── error-handling.ts # Error management
 │       ├── performance.ts # Mobile optimizations
 │       └── analytics.ts   # Usage tracking
-├── __tests__/             # Test suites
 ├── database.sql          # Database schema
 └── DEPLOYMENT.md         # Deployment guide
 ```
 
 ## 🧪 Testing
 
-### Run Tests
-```bash
-# Run all tests
-npm test
-
-# Run specific test suites
-npm run test:quiz       # Quiz flow tests
-npm run test:pdf        # PDF generation tests  
-npm run test:services   # Service layer tests
-
-# Run with coverage
-npm run test:coverage
-```
-
-### Mock Services
-
-The application includes comprehensive mock services that work without API keys:
-
-- **Mock OpenAI**: Returns template stories with child's name
-- **Mock Stripe**: Simulates payment processing
-- **Mock Email**: Logs emails instead of sending
-- **Mock Database**: In-memory storage for development
-
-Enable mocks by not setting API keys in development mode.
+This repository targets live service integration. Unit tests are not included by default. You can add your preferred testing setup (e.g., Playwright/Cypress for E2E) after configuring environment variables.
 
 ## 📱 Mobile Optimization
 
@@ -160,6 +134,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
 
 1. **Landing Page**: Introduction and quiz start
 2. **Quiz Steps**: 
+   - Free-form story description (required)
    - Child's name and age
    - Personality traits (max 3)
    - Favorite themes (max 4)
@@ -168,7 +143,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
 3. **Payment**: $19.99 Stripe checkout
 4. **Processing**: Story generation and PDF creation
 5. **Delivery**: Email with download link
-6. **Download**: 24-hour expiry, 3 download limit
+6. **Download**: 7-day expiry, 3 download limit
 
 ## 📝 API Endpoints
 
@@ -197,7 +172,6 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
 ## Support
 
 For technical support:
-- Test with mock services first
 - Check deployment documentation
 - Monitor application logs
 

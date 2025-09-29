@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { MAX_DOWNLOADS } from '@/lib/config'
 
 export async function GET(
   request: NextRequest,
@@ -35,6 +36,11 @@ export async function GET(
     // Check if payment is completed
     if (download.books.payment_status !== 'completed') {
       return new NextResponse('Payment required', { status: 402 })
+    }
+
+    // Enforce maximum number of downloads
+    if (typeof download.downloads_count === 'number' && download.downloads_count >= MAX_DOWNLOADS) {
+      return new NextResponse('Download limit reached', { status: 429 })
     }
 
     // Check if PDF exists

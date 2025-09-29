@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { supabase } from '@/lib/supabase'
 import { sendStoryEmail } from '@/lib/email'
+import { generatePDF } from '@/lib/pdf'
 import { headers } from 'next/headers'
 import crypto from 'crypto'
 
@@ -9,10 +10,9 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
 export async function POST(request: NextRequest) {
   try {
-    // Handle demo mode
     if (!stripe) {
-      console.log('📧 Webhook (demo mode): Stripe webhook received')
-      return NextResponse.json({ received: true, demo: true })
+      console.error('Stripe is not configured')
+      return NextResponse.json({ error: 'Stripe not configured' }, { status: 500 })
     }
     
     const body = await request.text()
@@ -41,25 +41,51 @@ export async function POST(request: NextRequest) {
     // Handle payment success
     if (event.type === 'payment_intent.succeeded') {
       const paymentIntent = event.data.object as any
-      const bookId = paymentIntent.metadata?.book_id
+      const metadataBookId = paymentIntent.metadata?.book_id as string | undefined
 
-      if (!bookId) {
-        console.error('No book_id in payment intent metadata')
-        return NextResponse.json({ received: true })
-      }
-
-      // Update book payment status
-      const { data: book, error: updateError } = await supabase
+      // Update the book by matching stripe_payment_id first (set earlier)
+      let bookUpdate = await supabase
         .from('books')
         .update({ payment_status: 'completed' })
         .eq('stripe_payment_id', paymentIntent.id)
         .select()
         .single()
 
+      // If no match, fall back to metadata book_id
+      if ((bookUpdate.error || !bookUpdate.data) && metadataBookId) {
+        bookUpdate = await supabase
+          .from('books')
+          .update({ payment_status: 'completed', stripe_payment_id: paymentIntent.id })
+          .eq('id', metadataBookId)
+          .select()
+          .single()
+      }
+
+      const book = bookUpdate.data
+      const updateError = bookUpdate.error
+
       if (updateError) {
         console.error('Error updating book payment status:', updateError)
         return NextResponse.json(
           { error: 'Database update failed' },
+          { status: 500 }
+        )
+      }
+
+      // Ensure PDF is generated now that payment is completed
+      try {
+        if (!book.story_text) {
+          throw new Error('Missing story_text for PDF generation')
+        }
+        const pdfPath = await generatePDF(book.story_text, book.quiz_data.childName)
+        await supabase
+          .from('books')
+          .update({ pdf_url: pdfPath })
+          .eq('id', book.id)
+      } catch (pdfError) {
+        console.error('PDF generation in webhook failed:', pdfError)
+        return NextResponse.json(
+          { error: 'PDF generation failed' },
           { status: 500 }
         )
       }
@@ -72,7 +98,7 @@ export async function POST(request: NextRequest) {
         .from('downloads')
         .insert({
           token,
-          book_id: bookId,
+          book_id: book.id,
           expires_at: expiresAt.toISOString()
         })
 
@@ -97,7 +123,7 @@ export async function POST(request: NextRequest) {
           .from('events')
           .insert({
             event_type: 'purchase_completed',
-            book_id: bookId,
+            book_id: book.id,
             metadata: {
               child_name: book.quiz_data.childName,
               parent_email: book.email,
@@ -106,7 +132,7 @@ export async function POST(request: NextRequest) {
             }
           })
 
-        console.log(`Payment completed and email sent for book ${bookId}`)
+        console.log(`Payment completed and email sent for book ${book.id}`)
       } catch (emailError) {
         console.error('Error sending email:', emailError)
         // Don't fail the webhook, but log the error

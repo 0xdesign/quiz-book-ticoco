@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { QuizData as FullQuizData } from '@/lib/supabase'
-import { openaiService, databaseService } from '@/lib/services'
-import { generatePDF } from '@/lib/pdf'
+import { databaseService } from '@/lib/services'
 import { QuizData } from '@/components/QuizForm'
+import { sanitizeQuizData, validateQuizData } from '@/lib/validation'
 
 export async function POST(request: NextRequest) {
   try {
-    const quizData: QuizData = await request.json()
+    const body = await request.json()
+    const quizDataRaw: QuizData = body.quizData || body
+    const quizData = sanitizeQuizData(quizDataRaw) as QuizData
+    const storyText: string | undefined = body.storyText
 
-    // Validate required fields
-    if (!quizData.childName || !quizData.childAge || !quizData.parentEmail || !quizData.parentConsent) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
+    // Validate input
+    const { isValid, errors } = validateQuizData(quizData)
+    if (!isValid) {
+      return NextResponse.json({ error: 'Invalid input', details: errors }, { status: 400 })
     }
 
     // Transform the simplified quiz data to match our schema
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
       childName: quizData.childName,
       childAge: quizData.childAge,
       childTraits: quizData.childTraits || [],
+      storyDescription: quizData.storyDescription || undefined,
       characters: [], // No characters in simplified version
       themes: quizData.favoriteThings || [], // Use favoriteThings as themes
       storyType: getStoryTypeDescription(quizData.storyType),
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
     // Create book record
     const { data: book, error: bookError } = await databaseService.insertBook({
       quiz_data: transformedQuizData,
+      story_text: storyText || null,
       email: quizData.parentEmail,
       payment_status: 'pending'
     })
@@ -44,18 +47,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Track quiz completion event
-    await databaseService.logEvent('quiz_completed', book.id, {
+    // Track story approved event (user reviewed before creating)
+    await databaseService.logEvent('story_approved', book.id, {
       child_name: quizData.childName,
       child_age: quizData.childAge,
       num_traits: quizData.childTraits?.length || 0,
       num_favorites: quizData.favoriteThings?.length || 0,
       story_type: quizData.storyType
     })
-
-    // Immediately start story generation (don't wait for it)
-    generateStoryInBackground(book.id, transformedQuizData)
-
     return NextResponse.json({ bookId: book.id })
   } catch (error) {
     console.error('Story creation error:', error)
@@ -66,31 +65,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Background story generation
-async function generateStoryInBackground(bookId: string, quizData: FullQuizData) {
-  try {
-    // Generate the story
-    const storyText = await openaiService.generateStory(quizData)
-    
-    // Generate PDF
-    const pdfPath = await generatePDF(storyText, quizData.childName)
-    
-    // Update book record
-    await databaseService.updateBook(bookId, {
-      story_text: storyText,
-      pdf_url: pdfPath
-    })
-
-    console.log(`Story generated for book ${bookId}`)
-  } catch (error) {
-    console.error(`Background story generation failed for book ${bookId}:`, error)
-    
-    // Update book with error status
-    await databaseService.updateBook(bookId, {
-      payment_status: 'failed'
-    })
-  }
-}
 
 // Map simplified story types to descriptive ones
 function getStoryTypeDescription(storyType: string): string {

@@ -1,9 +1,9 @@
 import Stripe from 'stripe'
 
-// Create stripe instance only if API key is available
+// Create stripe instance; require key to be present
 let stripe: Stripe | null = null
 
-if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'demo_key') {
+if (process.env.STRIPE_SECRET_KEY) {
   stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 }
 

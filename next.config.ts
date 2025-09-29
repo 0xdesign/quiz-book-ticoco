@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  // Ensure packages like pdfkit can load their own data files at runtime
+  serverExternalPackages: ['pdfkit']
 };
 
 export default nextConfig;

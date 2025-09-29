@@ -2,13 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import { getBookClient, generatePDFClient, createDownloadTokenClient } from '@/lib/client-services'
-import { DEMO_MODE } from '@/lib/demo-config'
 
 export default function SuccessClient() {
   const [book, setBook] = useState<Record<string, any> | null>(null)
   const [loading, setLoading] = useState(true)
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null)
   const params = useParams()
   
   const bookId = params.bookId as string
@@ -19,38 +16,15 @@ export default function SuccessClient() {
 
   const fetchBook = async () => {
     try {
-      if (DEMO_MODE) {
-        // Use client-side service for demo
-        const bookData = await getBookClient(bookId)
+      const response = await fetch(`/api/books/${bookId}`)
+      if (response.ok) {
+        const bookData = await response.json()
         setBook(bookData)
-        
-        // Generate download URL for demo
-        const token = await createDownloadTokenClient(bookId)
-        setDownloadUrl(`/download/${token}`)
-      } else {
-        // Use API for production
-        const response = await fetch(`/api/books/${bookId}`)
-        if (response.ok) {
-          const bookData = await response.json()
-          setBook(bookData)
-        }
       }
     } catch (error) {
       console.error('Error fetching book:', error)
     } finally {
       setLoading(false)
-    }
-  }
-  
-  const handleDownload = async () => {
-    if (DEMO_MODE && book) {
-      const pdf = await generatePDFClient(bookId)
-      const url = URL.createObjectURL(pdf)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${book.quiz_data?.childName || 'story'}-story.txt`
-      a.click()
-      URL.revokeObjectURL(url)
     }
   }
 
@@ -66,19 +40,19 @@ export default function SuccessClient() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-16 px-4">
       <div className="max-w-2xl mx-auto text-center">
         {/* Success Animation */}
-        <div className="mb-8">
-          <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+        <div className="mb-12">
+          <div className="w-24 h-24 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce shadow-2xl">
+            <svg className="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={4} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+          <h1 className="text-5xl font-bold text-gray-900 mb-4">
             Payment Successful! 🎉
           </h1>
-          <p className="text-xl text-gray-600">
+          <p className="text-2xl text-gray-700 font-medium">
             {book?.quiz_data?.childName}'s personalized story is on its way!
           </p>
         </div>
@@ -124,21 +98,7 @@ export default function SuccessClient() {
               </div>
             </div>
           </div>
-          
-          {/* Demo Download Button */}
-          {DEMO_MODE && book && (
-            <div className="mt-6 pt-6 border-t">
-              <button
-                onClick={handleDownload}
-                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all"
-              >
-                Download Story Now
-              </button>
-              <p className="text-sm text-gray-500 mt-2">
-                (Demo: Downloads as text file)
-              </p>
-            </div>
-          )}
+
         </div>
 
         {/* Story Details */}
@@ -160,16 +120,42 @@ export default function SuccessClient() {
           </div>
         </div>
 
-        {/* Call to Action */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl p-6">
-          <h3 className="text-xl font-bold mb-2">Love the story?</h3>
-          <p className="mb-4">Share the magic with friends and family!</p>
+        {/* Sibling Upsell */}
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-2xl p-8 shadow-xl mb-8">
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">Have more than one child? 👨‍👩‍👧‍👦</h3>
+          <p className="text-gray-700 text-base mb-6 leading-relaxed">Give each of your kids their own personalized adventure!</p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-lg px-8 py-4 rounded-xl hover:from-blue-600 hover:to-purple-600 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 mb-5"
+          >
+            Create Another Story - $19.99
+          </button>
+          <ul className="text-base text-gray-700 space-y-3 text-left">
+            <li className="flex items-start gap-2">
+              <span className="text-green-500 font-bold text-lg">✓</span>
+              <span>Reduces sibling rivalry</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-500 font-bold text-lg">✓</span>
+              <span>Each child feels equally special</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-green-500 font-bold text-lg">✓</span>
+              <span>Perfect for different ages/interests</span>
+            </li>
+          </ul>
+        </div>
+
+        {/* Referral Incentive */}
+        <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-2xl p-8 shadow-xl">
+          <h3 className="text-2xl font-bold mb-3">Know another parent who'd love this? 💙</h3>
+          <p className="text-lg mb-6 leading-relaxed opacity-95">Share Ticoco with others who might enjoy creating their own personalized story!</p>
           <button
             onClick={() => {
               if (navigator.share) {
                 navigator.share({
                   title: 'Ticoco - Personalized Children\'s Stories',
-                  text: `I just created an amazing personalized story for ${book?.quiz_data?.childName} with Ticoco!`,
+                  text: `I just created an amazing personalized story for ${book?.quiz_data?.childName} with Ticoco! You should try it too!`,
                   url: window.location.origin
                 })
               } else {
@@ -178,7 +164,7 @@ export default function SuccessClient() {
                 alert('Link copied to clipboard!')
               }
             }}
-            className="bg-white text-blue-600 font-bold px-6 py-2 rounded-lg hover:bg-gray-100 transition-all"
+            className="bg-white text-blue-600 font-bold text-lg px-8 py-3 rounded-xl hover:bg-gray-100 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
           >
             Share Ticoco
           </button>

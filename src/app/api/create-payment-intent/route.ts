@@ -30,8 +30,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create payment intent
-    const paymentIntent = await stripeService.createPaymentIntent(STORY_PRICE, 'usd')
+    // Create payment intent with metadata so webhook can resolve book
+    const paymentIntent = await stripeService.createPaymentIntent(
+      STORY_PRICE,
+      'usd',
+      { book_id: bookId }
+    )
 
     // Update book with payment intent ID
     await databaseService.updateBook(bookId, {

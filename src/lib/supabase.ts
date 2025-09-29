@@ -1,13 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mock-project.supabase.co'
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'mock-service-role-key'
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Only throw error if not in demo mode
-if (process.env.NODE_ENV === 'production' && 
-    process.env.NEXT_PUBLIC_DEMO_MODE !== 'true' &&
-    (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)) {
-  throw new Error('Missing Supabase environment variables in production')
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY')
 }
 
 // Server-side client with service role key
@@ -48,6 +45,9 @@ export interface QuizData {
   childPhoto?: string
   childAge: string
   childTraits: string[]
+  
+  // Optional: Free-form story description provided by user
+  storyDescription?: string
   
   // Section 2: Family & Characters
   characters: Array<{
