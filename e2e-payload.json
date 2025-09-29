@@ -1,0 +1,9 @@
+{
+  "childName":"Ava",
+  "childAge":"6 years",
+  "childTraits":["Curious","Brave","Kind"],
+  "favoriteThings":["Dinosaurs","Space","Magic"],
+  "storyType":"magical-journey",
+  "parentEmail":"test@example.com",
+  "parentConsent": true
+}
