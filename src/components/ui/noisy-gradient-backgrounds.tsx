@@ -17,9 +17,14 @@ function Noise({
     const canvas = grainRef.current;
     if (!canvas) return;
 
+    // Respect user's motion preferences
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.error("Failed to get 2D context for noise canvas.");
+      if (process.env.NODE_ENV === 'development') {
+        console.error("Failed to get 2D context for noise canvas.");
+      }
       return;
     }
 
@@ -30,7 +35,9 @@ function Noise({
 
     const patternCtx = patternCanvas.getContext('2d');
     if (!patternCtx) {
-        console.error("Failed to get 2D context for pattern sub-canvas.");
+        if (process.env.NODE_ENV === 'development') {
+          console.error("Failed to get 2D context for pattern sub-canvas.");
+        }
         return;
     }
     const patternData = patternCtx.createImageData(patternSize, patternSize);
@@ -109,19 +116,32 @@ function Noise({
       animationFrameId = window.requestAnimationFrame(loop);
     };
 
-    window.addEventListener('resize', resize);
+    // Debounce resize handler for better performance
+    let resizeTimeout: ReturnType<typeof setTimeout>;
+    const debouncedResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(resize, 100);
+    };
+
+    window.addEventListener('resize', debouncedResize);
     resize(); // Initial setup: size canvas and draw first frame if needed
-    if (patternRefreshInterval > 0) { // Start loop only if refresh is meaningful
-        loop();
+
+    // If user prefers reduced motion, draw once and don't animate
+    if (prefersReducedMotion) {
+      updatePattern();
+      drawGrain();
+    } else if (patternRefreshInterval > 0) { // Start loop only if refresh is meaningful
+      loop();
     } else { // if refresh interval is 0 or less, draw once
-        updatePattern();
-        drawGrain();
+      updatePattern();
+      drawGrain();
     }
 
 
     return () => {
-      window.removeEventListener('resize', resize);
-      if (animationFrameId) {
+      window.removeEventListener('resize', debouncedResize);
+      clearTimeout(resizeTimeout);
+      if (typeof animationFrameId !== 'undefined') {
         window.cancelAnimationFrame(animationFrameId);
       }
     };

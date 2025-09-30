@@ -104,10 +104,14 @@ const CurvedLoop = ({
     });
   };
 
-  const endDrag = () => {
+  const endDrag = (e: React.PointerEvent) => {
     if (!interactive) return;
     dragRef.current = false;
     dirRef.current = velRef.current > 0 ? "right" : "left";
+    // Release pointer capture
+    if (e.target) {
+      (e.target as Element).releasePointerCapture(e.pointerId);
+    }
   };
 
   const cursorStyle = interactive
@@ -116,14 +120,29 @@ const CurvedLoop = ({
       : "grab"
     : "auto";
 
+  // Cleanup ref array when repeats changes
+  useEffect(() => {
+    tspansRef.current = tspansRef.current.slice(0, repeats);
+  }, [repeats]);
+
   return (
     <div
+      role="marquee"
+      aria-live="off"
+      aria-label={`Scrolling text: ${marqueeText}`}
+      tabIndex={interactive ? 0 : -1}
       className="min-h-[120px] flex items-center justify-center w-full relative transition-colors duration-300"
       style={{ visibility: ready ? "visible" : "hidden", cursor: cursorStyle }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerLeave={endDrag}
+      onPointerCancel={endDrag}
+      onKeyDown={(e) => {
+        if (!interactive) return;
+        if (e.key === 'ArrowLeft') dirRef.current = 'left';
+        if (e.key === 'ArrowRight') dirRef.current = 'right';
+      }}
     >
       <svg
         className="select-none w-full overflow-visible block aspect-[100/12] text-[6rem] font-bold tracking-[5px] uppercase leading-none"

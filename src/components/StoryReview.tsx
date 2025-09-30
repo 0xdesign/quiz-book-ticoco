@@ -56,8 +56,8 @@ export default function StoryReview({ storyText, pages, quizData, onEdit, onRege
           <div key={i} className="bg-[#1F2023] border border-[#444444] rounded-[24px] p-8 mb-8 grid md:grid-cols-2 gap-8 items-start hover:border-white/30 transition-colors duration-300">
             {pages && pages[i]?.imageBase64 ? (
               <img
-                src={`data:image/png;base64,${pages[i]!.imageBase64}`}
-                alt={`Story page ${i + 1}`}
+                src={`data:image/png;base64,${pages[i].imageBase64}`}
+                alt={`Illustration for: ${p.slice(0, 60).trim()}...`}
                 className="w-full rounded-xl object-cover aspect-square"
               />
             ) : (
@@ -77,12 +77,14 @@ export default function StoryReview({ storyText, pages, quizData, onEdit, onRege
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <button
+                type="button"
                 onClick={onEdit}
                 className="flex-1 h-[56px] rounded-full border-2 border-[#D1D5DC] text-white font-semibold hover:bg-white/10 transition-colors duration-200"
               >
                 Edit Details
               </button>
               <button
+                type="button"
                 onClick={onRegenerate}
                 className="flex-1 h-[56px] rounded-full border-2 border-white text-white font-semibold hover:bg-white/10 transition-colors duration-200"
               >
@@ -90,6 +92,7 @@ export default function StoryReview({ storyText, pages, quizData, onEdit, onRege
               </button>
               {onCancel && (
                 <button
+                  type="button"
                   onClick={onCancel}
                   className="flex-1 h-[56px] rounded-full border-2 border-[#444444] text-[#99A1AF] font-semibold hover:bg-white/10 transition-colors duration-200"
                 >
@@ -103,6 +106,7 @@ export default function StoryReview({ storyText, pages, quizData, onEdit, onRege
         <div className="text-center bg-[#1F2023] border border-[#444444] rounded-[24px] p-8">
           <div className="flex flex-col gap-6">
             <button
+              type="button"
               onClick={onContinue}
               className="w-full sm:w-auto h-[56px] bg-white text-[#1E2939] font-bold text-[18px] px-12 rounded-full hover:bg-white/90 transition-colors duration-200"
             >
