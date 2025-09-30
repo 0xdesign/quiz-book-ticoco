@@ -2,6 +2,8 @@
 
 import React from 'react'
 import { QuizData } from './QuizForm'
+import { GradientBackground } from '@/components/ui/noisy-gradient-backgrounds'
+import CurvedLoop from '@/components/ui/curved-loop'
 
 export interface StoryPage {
   text: string
@@ -25,60 +27,90 @@ export default function StoryReview({ storyText, pages, quizData, onEdit, onRege
   const coverTitle = `${quizData.childName}'s ${quizData.storyType.replace('-', ' ')}`
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
-        {/* Cover */}
-        <div className="bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-3xl shadow-2xl p-12 mb-10 text-center relative overflow-hidden">
-          <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-          <div className="relative z-10">
-            <div className="text-6xl mb-6">📖</div>
-            <h1 className="text-4xl font-bold mb-3">{coverTitle}</h1>
-            <p className="text-lg opacity-95">Starring {quizData.childName}, age {quizData.childAge}</p>
-          </div>
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-[#0A0A0A] to-[#0A0A0A]">
+      <GradientBackground
+        gradientOrigin="bottom-middle"
+        noiseIntensity={0.15}
+        noisePatternSize={90}
+        noisePatternRefreshInterval={2}
+      />
+      <div className="relative z-10 min-h-screen py-12 px-4">
+        {/* Curved Loop Title */}
+        <div className="mb-24">
+          <CurvedLoop
+            marqueeText={coverTitle}
+            speed={2}
+            curveAmount={400}
+            direction="left"
+            interactive={true}
+          />
+          <p className="text-[18px] leading-7 text-[#99A1AF] text-center mt-6">
+            Starring {quizData.childName}, age {quizData.childAge?.replace(' years', '')}
+          </p>
         </div>
+
+        <div className="max-w-3xl mx-auto">
 
         {/* Pages */}
         {paragraphs.map((p, i) => (
-          <div key={i} className="bg-white rounded-2xl shadow-xl p-8 mb-8 grid md:grid-cols-2 gap-8 items-start hover:shadow-2xl transition-shadow duration-300">
+          <div key={i} className="bg-[#1F2023] border border-[#444444] rounded-[24px] p-8 mb-8 grid md:grid-cols-2 gap-8 items-start hover:border-white/30 transition-colors duration-300">
             {pages && pages[i]?.imageBase64 ? (
               <img
                 src={`data:image/png;base64,${pages[i]!.imageBase64}`}
                 alt={`Story page ${i + 1}`}
-                className="w-full rounded-xl object-cover aspect-square shadow-md"
+                className="w-full rounded-xl object-cover aspect-square"
               />
             ) : (
-              <div className="w-full rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 aspect-square flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-300">
-                <span className="text-sm">Image {i + 1}</span>
+              <div className="w-full rounded-xl bg-[#0A0A0A] border-2 border-dashed border-[#444444] aspect-square flex items-center justify-center">
+                <span className="text-[14px] text-[#99A1AF]">Image {i + 1}</span>
               </div>
             )}
-            <div className="text-gray-800 leading-relaxed text-base whitespace-pre-wrap">{p}</div>
+            <div className="text-white leading-relaxed text-[16px] whitespace-pre-wrap">{p}</div>
           </div>
         ))}
 
-        <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl shadow-lg p-8 mb-8 border border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">Want to Adjust Anything?</h2>
-          <p className="text-gray-700 text-base mb-6 leading-relaxed">You're in control! Tweak details or generate a fresh adventure.</p>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button onClick={onEdit} className="flex-1 py-4 px-6 border-2 border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all duration-200">
-              Edit Details
-            </button>
-            <button onClick={onRegenerate} className="flex-1 py-4 px-6 border-2 border-blue-500 text-blue-700 rounded-xl font-semibold hover:bg-blue-50 hover:border-blue-600 transition-all duration-200">
-              Try Another Story
-            </button>
-            <button onClick={onCancel} className="flex-1 py-4 px-6 border-2 border-gray-300 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all duration-200">
-              Cancel
-            </button>
+        <div className="bg-[#1F2023] border border-[#444444] rounded-[24px] p-8 mb-8">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <h2 className="text-[24px] leading-7 font-bold text-white">Want to Adjust Anything?</h2>
+              <p className="text-[14px] leading-5 text-[#99A1AF]">You're in control! Tweak details or generate a fresh adventure.</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={onEdit}
+                className="flex-1 h-[56px] rounded-full border-2 border-[#D1D5DC] text-white font-semibold hover:bg-white/10 transition-colors duration-200"
+              >
+                Edit Details
+              </button>
+              <button
+                onClick={onRegenerate}
+                className="flex-1 h-[56px] rounded-full border-2 border-white text-white font-semibold hover:bg-white/10 transition-colors duration-200"
+              >
+                Try Another Story
+              </button>
+              {onCancel && (
+                <button
+                  onClick={onCancel}
+                  className="flex-1 h-[56px] rounded-full border-2 border-[#444444] text-[#99A1AF] font-semibold hover:bg-white/10 transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="text-center bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <button
-            onClick={onContinue}
-            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold text-xl px-12 py-5 rounded-2xl shadow-2xl hover:from-blue-600 hover:to-purple-600 hover:shadow-3xl transform hover:scale-105 transition-all duration-300"
-          >
-            I Love It — Continue to Checkout
-          </button>
-          <p className="text-base text-gray-600 mt-4 font-medium">Just $19.99 • Delivered instantly • Secure payment</p>
+        <div className="text-center bg-[#1F2023] border border-[#444444] rounded-[24px] p-8">
+          <div className="flex flex-col gap-6">
+            <button
+              onClick={onContinue}
+              className="w-full sm:w-auto h-[56px] bg-white text-[#1E2939] font-bold text-[18px] px-12 rounded-full hover:bg-white/90 transition-colors duration-200"
+            >
+              I Love It — Continue to Checkout
+            </button>
+            <p className="text-[14px] leading-5 text-[#99A1AF]">Just $19.99 • Delivered instantly • Secure payment</p>
+          </div>
+        </div>
         </div>
       </div>
     </div>
