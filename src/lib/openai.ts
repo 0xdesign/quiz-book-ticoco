@@ -112,6 +112,7 @@ Format: Return ONLY the story text, with paragraphs separated by double line bre
         input: prompt,
         max_output_tokens: opts?.maxOutputTokens ?? MAX_OUT_TOK
       }
+      // Only attach reasoning/text verbosity knobs for models that support it
       if (m.startsWith('gpt-5')) {
         base.reasoning = { effort: opts?.reasoningEffort || REASONING }
         base.text = { verbosity: opts?.verbosity || VERBOSITY, format: { type: 'text' } }
@@ -132,7 +133,6 @@ Format: Return ONLY the story text, with paragraphs separated by double line bre
     // Minimal debug of response shape for troubleshooting
     try {
       const types = Array.isArray((response as any)?.output) ? (response as any).output.map((o: any) => o?.type) : []
-      // eslint-disable-next-line no-console
       console.log('generateStory.output.types', types)
     } catch {}
     if (Array.isArray((response as any)?.output)) {
@@ -202,6 +202,103 @@ function getStoryTone(type: string): string {
 
 // Removed demo/mock story generation
 
+// Generate detailed character profile for consistent image generation
+export async function generateCharacterProfile(
+  quizData: QuizData,
+  opts?: {
+    model?: string
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+    maxOutputTokens?: number
+  }
+): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI is not configured. Set OPENAI_API_KEY environment variable.')
+  }
+
+  // Build context from quiz data
+  const traitsString = quizData.childTraits?.join(', ') || ''
+  const themesString = quizData.themes?.join(', ') || ''
+
+  let photoContext = ''
+  if (quizData.childPhoto) {
+    photoContext = '\nNote: The child has uploaded a photo. Base the description on authentic visual cues from the photo.'
+  }
+
+  const prompt = `Create a detailed visual character description for a children's book illustration. This description will be used to generate multiple images, so it must be EXTREMELY SPECIFIC to ensure the character looks identical in every scene.
+
+CHARACTER INFORMATION:
+- Name: ${quizData.childName}
+- Age: ${quizData.childAge}
+- Personality: ${traitsString}
+- Story themes: ${themesString}${photoContext}
+
+Create a comprehensive character profile that includes:
+
+1. PHYSICAL FEATURES (be very specific):
+   - Exact hair color, length, and style (e.g., "shoulder-length wavy auburn hair with side-swept bangs")
+   - Eye color and shape (e.g., "large round hazel eyes")
+   - Skin tone (e.g., "warm light brown skin with rosy cheeks")
+   - Facial features (e.g., "small button nose, friendly smile showing gap between front teeth")
+   - Build and proportions for age (e.g., "small energetic build, typical 5-year-old proportions")
+
+2. CLOTHING (exact details):
+   - Specific colors and style (e.g., "bright yellow t-shirt with a cartoon sun on the front, blue denim overalls")
+   - Distinctive details (e.g., "left overall strap unbuckled, red sneakers with white laces")
+
+3. DISTINGUISHING FEATURES:
+   - Any unique characteristics (e.g., "three small freckles across nose bridge", "always wears a red hair bow")
+
+4. ARTISTIC STYLE NOTES:
+   - Consistent art direction (e.g., "Pixar-style 3D illustration" or "flat 2D storybook style")
+   - Expression guidance (e.g., "friendly, curious expression with slight smile")
+
+Format the response as a detailed character reference that can be prepended to image prompts. Be extremely specific about every visual detail. This description must remain consistent across all 10 book pages.
+
+Start with "CHARACTER REFERENCE FOR ALL IMAGES:" and make it 150-200 words.`
+
+  // Use Responses API with GPT-5
+  const tryModels = [opts?.model || MODEL, 'gpt-4.1']
+  let response: any
+  for (const m of tryModels) {
+    try {
+      const base: any = {
+        model: m,
+        input: prompt,
+        max_output_tokens: opts?.maxOutputTokens ?? 500
+      }
+      if (m.startsWith('gpt-5')) {
+        base.reasoning = { effort: opts?.reasoningEffort || 'low' }
+        base.text = { verbosity: 'high', format: { type: 'text' } }
+      }
+      response = await (openai as any).responses.create(base)
+      break
+    } catch (err) {
+      if (m === tryModels[tryModels.length - 1]) throw err
+    }
+  }
+
+  // Extract text from response
+  if (response?.output_text) return response.output_text as string
+
+  const fragments: string[] = []
+  if (Array.isArray((response as any)?.output)) {
+    for (const item of (response as any).output) {
+      if (item?.type === 'message') {
+        const contents = Array.isArray(item.content) ? item.content : []
+        for (const c of contents) {
+          if (typeof c?.text === 'string') fragments.push(c.text)
+        }
+      } else if (typeof item?.text === 'string') {
+        fragments.push(item.text)
+      }
+    }
+  }
+
+  const text = fragments.join('\n\n').trim()
+  if (!text) throw new Error('Failed to generate character profile')
+  return text
+}
+
 // Generate a single image using the Responses API image_generation tool
 export async function generateImage(
   prompt: string,
@@ -220,13 +317,15 @@ export async function generateImage(
 
   // GPT-5 with image_generation tool via Responses API only (no fallback)
   const tool: any = { type: 'image_generation' }
+  // Skip text-only models for image generation to avoid retries
+  const preferredModel = options?.model || (MODEL.startsWith('gpt-5') ? undefined : MODEL)
   const tryImageModels = [
-    options?.model || MODEL,
-    'gpt-4.1',
-    'gpt-4.1-mini',
+    preferredModel,
     'gpt-4o',
-    'gpt-4o-mini'
-  ]
+    'gpt-4.1',
+    'gpt-4o-mini',
+    'gpt-4.1-mini'
+  ].filter(Boolean) as string[]
   let response: any
   let lastErr: any
   for (const m of tryImageModels) {
