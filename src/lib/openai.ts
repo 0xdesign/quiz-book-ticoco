@@ -12,6 +12,9 @@ if (process.env.OPENAI_API_KEY) {
   })
 }
 
+// Export the OpenAI client for direct access when needed
+export { openai }
+
 // Global defaults (overridable via environment variables)
 const MODEL = process.env.OPENAI_MODEL || 'gpt-5'
 const REASONING = (process.env.OPENAI_REASONING as 'minimal' | 'low' | 'medium' | 'high') || 'medium'

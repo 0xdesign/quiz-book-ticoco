@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { openaiService } from '@/lib/services'
+import { openai } from '@/lib/openai'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,8 +12,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (!openai) {
+      return NextResponse.json(
+        { error: 'OpenAI is not configured' },
+        { status: 500 }
+      )
+    }
+
     // Generate a 280 character story description using OpenAI
-    const response = await openaiService.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: [
         {

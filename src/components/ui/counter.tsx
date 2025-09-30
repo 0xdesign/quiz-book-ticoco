@@ -176,12 +176,13 @@ const CounterDisplay = ({
   );
 };
 
-interface ComponentPropsWithControls extends CounterDisplayProps {
+interface ComponentPropsWithControls extends Omit<CounterDisplayProps, 'value'> {
   initialValue?: number;
   min?: number;
   max?: number;
   step?: number;
   onChange?: (value: number) => void;
+  value?: number; // Controlled value (optional for uncontrolled mode)
 }
 
 export const Component = ({
