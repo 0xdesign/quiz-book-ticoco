@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { QuizData as FullQuizData } from '@/lib/supabase'
 import { openaiService } from '@/lib/services'
-import { generateImage, generateCharacterProfile } from '@/lib/openai'
+import {
+  generateImage,
+  generateCharacterProfile,
+  extractStoryCharacters,
+  generateSecondaryCharacterProfile,
+  createCharacterDesignDocument
+} from '@/lib/openai'
 import { QuizData } from '@/components/QuizForm'
 import { sanitizeQuizData, validateQuizData } from '@/lib/validation'
 
@@ -38,16 +44,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Story generation failed: ${msg}` }, { status: 500 })
     }
 
-    // Generate character profile for consistent images
-    let characterProfile: string
+    // Extract characters from story
+    let characters: Array<{ name: string; role: string; importance: number }> = []
     try {
-      characterProfile = await generateCharacterProfile(transformedQuizData)
-      console.log('Character profile generated:', characterProfile.substring(0, 100) + '...')
+      characters = await extractStoryCharacters(storyText, quizData.childName)
+      console.log(`Extracted ${characters.length} secondary characters:`, characters.map(c => c.name).join(', '))
+    } catch (e: any) {
+      console.warn('Character extraction failed, continuing without secondary characters:', e?.message)
+      // Continue without secondary characters - not critical
+    }
+
+    // Generate main character profile
+    let mainCharacterProfile: string
+    try {
+      mainCharacterProfile = await generateCharacterProfile(transformedQuizData)
+      console.log('Main character profile generated:', mainCharacterProfile.substring(0, 100) + '...')
     } catch (e: any) {
       const msg = e?.message || 'Unknown character profile generation error'
       console.error('Character profile generation failed:', msg)
       return NextResponse.json({ error: `Character profile generation failed: ${msg}` }, { status: 500 })
     }
+
+    // Generate secondary character profiles
+    const secondaryProfiles: Array<{ name: string; profile: string }> = []
+    for (let i = 0; i < characters.length; i++) {
+      const char = characters[i]
+      try {
+        const profile = await generateSecondaryCharacterProfile(
+          char.name,
+          char.role,
+          storyText,
+          quizData.childName,
+          quizData.childAge
+        )
+        secondaryProfiles.push({ name: char.name, profile })
+        console.log(`Generated profile for ${char.name} (${i + 1}/${characters.length})`)
+      } catch (e: any) {
+        console.warn(`Failed to generate profile for ${char.name}:`, e?.message)
+        // Continue without this character's profile - not critical
+      }
+    }
+
+    // Create unified character design document
+    const characterDesignDocument = createCharacterDesignDocument(
+      mainCharacterProfile,
+      secondaryProfiles
+    )
 
     // Split into up to 10 pages
     const paragraphs = storyText
@@ -62,16 +104,14 @@ export async function POST(request: NextRequest) {
     const tone = getStoryTypeDescription(quizData.storyType)
     const prompts = pagesText.map((pt) => {
       const scene = pt || `A ${tone} scene featuring ${quizData.childName}`
-      return `${characterProfile}
-
-CONSISTENCY REQUIREMENT: Use the EXACT character design described above. Same hair, same eyes, same outfit, same features in every image. This is image for one scene in a 10-page book - the character must look identical across all pages.
+      return `${characterDesignDocument}
 
 SCENE FOR THIS PAGE:
 ${scene}
 
 ARTISTIC DIRECTION:
 - Style: Children's book illustration, ${tone} tone
-- Composition: Focus on the main character ${quizData.childName}
+- Composition: Focus on the characters present in this scene
 - Themes present: ${(quizData.favoriteThings || []).join(', ')}
 - CRITICAL: Maintain exact character consistency from reference above
 - No text or words in the image`
@@ -106,7 +146,7 @@ ARTISTIC DIRECTION:
     const pages = pagesText.map((text, idx) => ({ text, imageBase64: results[idx] }))
     const elapsed = Date.now() - start
     console.log(`Story + images generated in ${elapsed}ms (text + ${prompts.length} images)`)
-    return NextResponse.json({ storyText, pages, characterProfile })
+    return NextResponse.json({ storyText, pages, characterProfile: characterDesignDocument })
   } catch (error: any) {
     const msg = error?.message || 'Failed to generate story'
     console.error('Story generation error (unhandled):', msg)
