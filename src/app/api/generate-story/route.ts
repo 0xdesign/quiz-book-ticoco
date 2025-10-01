@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       characters = await extractStoryCharacters(storyText, quizData.childName)
       // Limit characters based on environment
       characters = characters.slice(0, maxSecondaryCharacters)
-      console.log(`Extracted ${characters.length} secondary characters:`, characters.map(c => c.name).join(', '))
+      console.debug(`Extracted ${characters.length} secondary characters`)
     } catch (e: any) {
       console.warn('Character extraction failed, continuing without secondary characters:', e?.message)
       // Continue without secondary characters - not critical
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     let mainCharacterProfile: string
     try {
       mainCharacterProfile = await generateCharacterProfile(transformedQuizData)
-      console.log('Main character profile generated:', mainCharacterProfile.substring(0, 100) + '...')
+      console.debug('Main character profile generated')
     } catch (e: any) {
       const msg = e?.message || 'Unknown character profile generation error'
       console.error('Character profile generation failed:', msg)
@@ -91,9 +91,9 @@ export async function POST(request: NextRequest) {
       results.forEach((result, i) => {
         if (result.status === 'fulfilled') {
           secondaryProfiles.push(result.value)
-          console.log(`Generated profile for ${result.value.name}`)
+          console.debug(`Generated secondary character profile ${i + 1}/${characters.length}`)
         } else {
-          console.warn(`Failed to generate profile for ${characters[i].name}:`, result.reason?.message)
+          console.warn(`Failed to generate profile for character ${i + 1}:`, result.reason?.message)
         }
       })
     }
@@ -134,7 +134,10 @@ ARTISTIC DIRECTION:
     })
 
     const size = (process.env.OPENAI_IMAGE_SIZE as `${number}x${number}`) || '768x768'
-    const concurrency = Number(process.env.IMAGE_CONCURRENCY || 4)
+    const requestedConcurrency = Number(process.env.IMAGE_CONCURRENCY ?? 4)
+    const concurrency = Number.isFinite(requestedConcurrency) && requestedConcurrency > 0
+      ? requestedConcurrency
+      : 4
     const results: string[] = new Array(prompts.length)
     let cursor = 0
     const worker = async () => {
