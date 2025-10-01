@@ -15,6 +15,13 @@ export default function GeneratePage() {
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
+  // Progress tracking for SSE
+  const [loadingStage, setLoadingStage] = useState<string>('story')
+  const [loadingMessage, setLoadingMessage] = useState<string>('Getting started...')
+  const [currentStep, setCurrentStep] = useState<number>(1)
+  const [totalSteps, setTotalSteps] = useState<number>(5)
+  const [imageProgress, setImageProgress] = useState<{ current: number; total: number } | null>(null)
+
   // Load quiz data from session and kick off generation
   useEffect(() => {
     try {
@@ -35,25 +42,83 @@ export default function GeneratePage() {
     setError(null)
     setStoryText('')
     setPages(undefined)
+    setLoadingStage('story')
+    setLoadingMessage('Getting started...')
+    setCurrentStep(1)
+    setTotalSteps(5)
+    setImageProgress(null)
+
+    // Try SSE endpoint first
     try {
-      const response = await fetch('/api/generate-story', {
+      const response = await fetch('/api/generate-story-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       })
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}))
-        throw new Error(err?.error || 'Failed to generate story')
+        throw new Error('SSE endpoint not available')
       }
 
-      const result = await response.json()
-      setStoryText(result.storyText as string)
-      setPages(result.pages as StoryPage[] | undefined)
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+
+      if (!reader) {
+        throw new Error('No response body')
+      }
+
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6))
+
+            if (data.type === 'progress') {
+              setLoadingStage(data.stage)
+              setLoadingMessage(data.message)
+              setCurrentStep(data.step || 1)
+              setTotalSteps(data.totalSteps || 5)
+              setImageProgress(data.progress || null)
+            } else if (data.type === 'complete') {
+              setStoryText(data.data.storyText)
+              setPages(data.data.pages)
+              setLoading(false)
+            } else if (data.type === 'error') {
+              throw new Error(data.error)
+            }
+          }
+        }
+      }
     } catch (e: any) {
-      setError(e?.message || 'Story generation failed')
-    } finally {
-      setLoading(false)
+      // Fallback to non-streaming endpoint
+      console.warn('SSE failed, falling back to standard endpoint:', e?.message)
+      try {
+        const response = await fetch('/api/generate-story', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        })
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}))
+          throw new Error(err?.error || 'Failed to generate story')
+        }
+
+        const result = await response.json()
+        setStoryText(result.storyText as string)
+        setPages(result.pages as StoryPage[] | undefined)
+        setLoading(false)
+      } catch (e2: any) {
+        setError(e2?.message || 'Story generation failed')
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -127,9 +192,27 @@ export default function GeneratePage() {
           <div className="bg-[#1F2023] border border-[#444444] rounded-[24px] p-8 text-center max-w-md w-full">
             <div className="animate-spin w-12 h-12 border-4 border-white border-t-transparent rounded-full mx-auto mb-6"></div>
             <h2 className="text-[24px] leading-7 font-bold text-white mb-3">
-              Creating {quizData.childName}'s personalized adventure…
+              {loadingMessage}
             </h2>
-            <p className="text-[14px] leading-5 text-[#99A1AF]">This can take ~10–20 seconds</p>
+            <p className="text-[14px] leading-5 text-[#99A1AF] mb-4">
+              Step {currentStep} of {totalSteps}
+            </p>
+            {imageProgress && (
+              <>
+                <div className="w-full bg-[#444444] rounded-full h-2 mb-2">
+                  <div
+                    className="bg-white h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(imageProgress.current / imageProgress.total) * 100}%` }}
+                  />
+                </div>
+                <p className="text-[12px] text-[#99A1AF]">
+                  {imageProgress.current} of {imageProgress.total} illustrations
+                </p>
+              </>
+            )}
+            {!imageProgress && (
+              <p className="text-[12px] text-[#99A1AF]">This may take 30-45 seconds</p>
+            )}
           </div>
         </div>
       </div>

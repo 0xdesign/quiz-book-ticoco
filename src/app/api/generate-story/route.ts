@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { QuizData as FullQuizData } from '@/lib/supabase'
 import { openaiService } from '@/lib/services'
-import { generateImage, generateCharacterProfile } from '@/lib/openai'
+import {
+  generateImage,
+  generateCharacterProfile,
+  extractStoryCharacters,
+  generateSecondaryCharacterProfile,
+  createCharacterDesignDocument
+} from '@/lib/openai'
 import { QuizData } from '@/components/QuizForm'
 import { sanitizeQuizData, validateQuizData } from '@/lib/validation'
 
@@ -38,47 +44,100 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Story generation failed: ${msg}` }, { status: 500 })
     }
 
-    // Generate character profile for consistent images
-    let characterProfile: string
+    // Extract characters from story
+    // Development mode optimization: reduce character count for faster testing
+    const isDevMode = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true'
+    const maxSecondaryCharacters = isDevMode ? 2 : 3
+
+    let characters: Array<{ name: string; role: string; importance: number }> = []
     try {
-      characterProfile = await generateCharacterProfile(transformedQuizData)
-      console.log('Character profile generated:', characterProfile.substring(0, 100) + '...')
+      characters = await extractStoryCharacters(storyText, quizData.childName)
+      // Limit characters based on environment
+      characters = characters.slice(0, maxSecondaryCharacters)
+      console.debug(`Extracted ${characters.length} secondary characters`)
+    } catch (e: any) {
+      console.warn('Character extraction failed, continuing without secondary characters:', e?.message)
+      // Continue without secondary characters - not critical
+    }
+
+    // Generate main character profile
+    let mainCharacterProfile: string
+    try {
+      mainCharacterProfile = await generateCharacterProfile(transformedQuizData)
+      console.debug('Main character profile generated')
     } catch (e: any) {
       const msg = e?.message || 'Unknown character profile generation error'
       console.error('Character profile generation failed:', msg)
       return NextResponse.json({ error: `Character profile generation failed: ${msg}` }, { status: 500 })
     }
 
-    // Split into up to 10 pages
+    // Generate secondary character profiles (in parallel for speed)
+    const secondaryProfiles: Array<{ name: string; profile: string }> = []
+    if (characters.length > 0) {
+      const results = await Promise.allSettled(
+        characters.map(async (char) => {
+          const profile = await generateSecondaryCharacterProfile(
+            char.name,
+            char.role,
+            storyText,
+            quizData.childName,
+            quizData.childAge
+          )
+          return { name: char.name, profile }
+        })
+      )
+
+      // Collect successful profiles
+      results.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          secondaryProfiles.push(result.value)
+          console.debug(`Generated secondary character profile ${i + 1}/${characters.length}`)
+        } else {
+          console.warn(`Failed to generate profile for character ${i + 1}:`, result.reason?.message)
+        }
+      })
+    }
+
+    // Create unified character design document
+    const characterDesignDocument = createCharacterDesignDocument(
+      mainCharacterProfile,
+      secondaryProfiles
+    )
+
+    // Split into pages
     const paragraphs = storyText
       .split('\n\n')
       .map(p => p.trim())
       .filter(Boolean)
-    const pagesText = paragraphs.length >= 10
-      ? paragraphs.slice(0, 10)
-      : [...paragraphs, ...Array.from({ length: 10 - paragraphs.length }, () => '')]
+
+    // Development mode: generate fewer images for faster testing
+    const targetPageCount = isDevMode ? 5 : 10
+    const pagesText = paragraphs.length >= targetPageCount
+      ? paragraphs.slice(0, targetPageCount)
+      : [...paragraphs.slice(0, targetPageCount), ...Array.from({ length: targetPageCount - Math.min(paragraphs.length, targetPageCount) }, () => '')]
 
     // Generate an image for each page with limited concurrency
     const tone = getStoryTypeDescription(quizData.storyType)
     const prompts = pagesText.map((pt) => {
       const scene = pt || `A ${tone} scene featuring ${quizData.childName}`
-      return `${characterProfile}
-
-CONSISTENCY REQUIREMENT: Use the EXACT character design described above. Same hair, same eyes, same outfit, same features in every image. This is image for one scene in a 10-page book - the character must look identical across all pages.
+      return `${characterDesignDocument}
 
 SCENE FOR THIS PAGE:
 ${scene}
 
 ARTISTIC DIRECTION:
 - Style: Children's book illustration, ${tone} tone
-- Composition: Focus on the main character ${quizData.childName}
+- Composition: Focus on the characters present in this scene
 - Themes present: ${(quizData.favoriteThings || []).join(', ')}
 - CRITICAL: Maintain exact character consistency from reference above
 - No text or words in the image`
     })
 
     const size = (process.env.OPENAI_IMAGE_SIZE as `${number}x${number}`) || '768x768'
-    const concurrency = Number(process.env.IMAGE_CONCURRENCY || 4)
+    const requestedConcurrency = Number(process.env.IMAGE_CONCURRENCY ?? 4)
+    const concurrency = Number.isFinite(requestedConcurrency) && requestedConcurrency > 0
+      ? requestedConcurrency
+      : 4
     const results: string[] = new Array(prompts.length)
     let cursor = 0
     const worker = async () => {
@@ -106,7 +165,7 @@ ARTISTIC DIRECTION:
     const pages = pagesText.map((text, idx) => ({ text, imageBase64: results[idx] }))
     const elapsed = Date.now() - start
     console.log(`Story + images generated in ${elapsed}ms (text + ${prompts.length} images)`)
-    return NextResponse.json({ storyText, pages, characterProfile })
+    return NextResponse.json({ storyText, pages, characterProfile: characterDesignDocument })
   } catch (error: any) {
     const msg = error?.message || 'Failed to generate story'
     console.error('Story generation error (unhandled):', msg)

@@ -299,6 +299,216 @@ Start with "CHARACTER REFERENCE FOR ALL IMAGES:" and make it 150-200 words.`
   return text
 }
 
+// Extract all characters from generated story
+export async function extractStoryCharacters(
+  storyText: string,
+  mainCharacterName: string,
+  opts?: {
+    model?: string
+    maxOutputTokens?: number
+  }
+): Promise<Array<{ name: string; role: string; importance: number }>> {
+  if (!openai) {
+    throw new Error('OpenAI is not configured. Set OPENAI_API_KEY environment variable.')
+  }
+
+  const prompt = `Analyze this children's story and extract ALL characters that appear in it.
+
+STORY:
+${storyText}
+
+MAIN CHARACTER: ${mainCharacterName}
+
+Extract every character mentioned in the story (excluding the main character ${mainCharacterName}). For each character, provide:
+1. Name (or descriptor if no name given, e.g., "Mom", "the wise owl", "friendly dragon")
+2. Role/relationship to main character
+3. Importance score 1-10 (how often they appear or how critical to the story)
+
+Return ONLY a JSON array in this exact format:
+[
+  {"name": "Mom", "role": "mother", "importance": 8},
+  {"name": "Buddy", "role": "pet dog", "importance": 6},
+  {"name": "Sarah", "role": "best friend", "importance": 7}
+]
+
+Rules:
+- Exclude ${mainCharacterName} from the list
+- Exclude generic background characters (e.g., "other children", "people in the park")
+- Include only characters with speaking roles or significant presence
+- Limit to top 3 most important characters (quality over quantity)
+- Return valid JSON only, no markdown or explanation`
+
+  const tryModels = [opts?.model || MODEL, 'gpt-4.1', 'gpt-4o-mini']
+  let response: any
+  for (const m of tryModels) {
+    try {
+      const base: any = {
+        model: m,
+        input: prompt,
+        max_output_tokens: opts?.maxOutputTokens ?? 800
+      }
+      if (m.startsWith('gpt-5')) {
+        base.reasoning = { effort: 'low' }
+        base.text = { verbosity: 'low', format: { type: 'text' } }
+      }
+      response = await (openai as any).responses.create(base)
+      break
+    } catch (err) {
+      if (m === tryModels[tryModels.length - 1]) throw err
+    }
+  }
+
+  // Extract text from response
+  let text = ''
+  if (response?.output_text) {
+    text = response.output_text as string
+  } else if (Array.isArray((response as any)?.output)) {
+    const fragments: string[] = []
+    for (const item of (response as any).output) {
+      if (item?.type === 'message') {
+        const contents = Array.isArray(item.content) ? item.content : []
+        for (const c of contents) {
+          if (typeof c?.text === 'string') fragments.push(c.text)
+        }
+      } else if (typeof item?.text === 'string') {
+        fragments.push(item.text)
+      }
+    }
+    text = fragments.join('\n').trim()
+  }
+
+  if (!text) throw new Error('Failed to extract characters from story')
+
+  // Parse JSON from response
+  try {
+    // Remove markdown code blocks if present
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    const characters = JSON.parse(cleaned) as Array<{ name: string; role: string; importance: number }>
+
+    // Sort by importance and take top 3 (optimized for performance)
+    return characters
+      .sort((a, b) => b.importance - a.importance)
+      .slice(0, 3)
+  } catch (err) {
+    console.error('Failed to parse character JSON:', text)
+    throw new Error('Failed to parse character data from AI response')
+  }
+}
+
+// Generate detailed visual profile for a secondary character
+export async function generateSecondaryCharacterProfile(
+  characterName: string,
+  characterRole: string,
+  storyContext: string,
+  mainCharacterName: string,
+  mainCharacterAge: string,
+  opts?: {
+    model?: string
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+    maxOutputTokens?: number
+  }
+): Promise<string> {
+  if (!openai) {
+    throw new Error('OpenAI is not configured. Set OPENAI_API_KEY environment variable.')
+  }
+
+  const prompt = `Create a detailed visual character description for "${characterName}" (${characterRole}) in a children's book illustration.
+
+STORY CONTEXT:
+${storyContext.substring(0, 500)}...
+
+MAIN CHARACTER: ${mainCharacterName}, age ${mainCharacterAge}
+SECONDARY CHARACTER: ${characterName} (${characterRole})
+
+Create a specific visual profile for ${characterName} that includes:
+
+1. PHYSICAL FEATURES:
+   - Age appearance (if applicable)
+   - Hair color, length, and style
+   - Eye color and expression
+   - Skin tone
+   - Facial features
+   - Build and size relative to ${mainCharacterName}
+
+2. CLOTHING & APPEARANCE:
+   - Specific colors and style
+   - Distinctive details
+   - Any accessories
+
+3. DISTINGUISHING FEATURES:
+   - Unique characteristics that make them recognizable
+   - Expression and demeanor
+
+4. ARTISTIC NOTES:
+   - How they should appear in relation to main character
+   - Consistent personality expression
+
+Be EXTREMELY SPECIFIC about visual details to ensure ${characterName} looks identical across all images. This description will be used for multiple illustrations.
+
+Format: 100-120 words, starting with "${characterName.toUpperCase()} CHARACTER REFERENCE:"`
+
+  const tryModels = [opts?.model || MODEL, 'gpt-4.1']
+  let response: any
+  for (const m of tryModels) {
+    try {
+      const base: any = {
+        model: m,
+        input: prompt,
+        max_output_tokens: opts?.maxOutputTokens ?? 400
+      }
+      if (m.startsWith('gpt-5')) {
+        base.reasoning = { effort: opts?.reasoningEffort || 'low' }
+        base.text = { verbosity: 'high', format: { type: 'text' } }
+      }
+      response = await (openai as any).responses.create(base)
+      break
+    } catch (err) {
+      if (m === tryModels[tryModels.length - 1]) throw err
+    }
+  }
+
+  // Extract text from response
+  if (response?.output_text) return response.output_text as string
+
+  const fragments: string[] = []
+  if (Array.isArray((response as any)?.output)) {
+    for (const item of (response as any).output) {
+      if (item?.type === 'message') {
+        const contents = Array.isArray(item.content) ? item.content : []
+        for (const c of contents) {
+          if (typeof c?.text === 'string') fragments.push(c.text)
+        }
+      } else if (typeof item?.text === 'string') {
+        fragments.push(item.text)
+      }
+    }
+  }
+
+  const text = fragments.join('\n\n').trim()
+  if (!text) throw new Error(`Failed to generate profile for ${characterName}`)
+  return text
+}
+
+// Create unified character design document for all characters
+export function createCharacterDesignDocument(
+  mainCharacterProfile: string,
+  secondaryProfiles: Array<{ name: string; profile: string }>
+): string {
+  let document = `${mainCharacterProfile}\n\n`
+
+  if (secondaryProfiles.length > 0) {
+    document += `SECONDARY CHARACTERS:\n\n`
+    secondaryProfiles.forEach(({ profile }) => {
+      document += `${profile}\n\n`
+    })
+  }
+
+  document += `CRITICAL CONSISTENCY RULE:
+All characters must maintain EXACT visual appearance across all 10 book pages. Same hair, eyes, clothing, features, and proportions in every single image. This is a continuous story - visual consistency is essential.`
+
+  return document.trim()
+}
+
 // Generate a single image using the Responses API image_generation tool
 export async function generateImage(
   prompt: string,
@@ -315,17 +525,13 @@ export async function generateImage(
   const size = options?.size || IMG_SIZE
   const format = options?.format || IMG_FORMAT
 
-  // GPT-5 with image_generation tool via Responses API only (no fallback)
+  // Image generation via Responses API - only use models that support image_generation tool
   const tool: any = { type: 'image_generation' }
-  // Skip text-only models for image generation to avoid retries
-  const preferredModel = options?.model || (MODEL.startsWith('gpt-5') ? undefined : MODEL)
+  // Only use vision/multimodal models (gpt-4o family) - text-only models (gpt-4.1, gpt-5) don't support images
   const tryImageModels = [
-    preferredModel,
     'gpt-4o',
-    'gpt-4.1',
-    'gpt-4o-mini',
-    'gpt-4.1-mini'
-  ].filter(Boolean) as string[]
+    'gpt-4o-mini'
+  ]
   let response: any
   let lastErr: any
   for (const m of tryImageModels) {
