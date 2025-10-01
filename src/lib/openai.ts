@@ -525,10 +525,9 @@ export async function generateImage(
   const size = options?.size || IMG_SIZE
   const format = options?.format || IMG_FORMAT
 
-  // GPT-5 with image_generation tool via Responses API only (no fallback)
+  // GPT-5 with image_generation tool via Responses API
   const tool: any = { type: 'image_generation' }
-  // Skip text-only models for image generation to avoid retries
-  const preferredModel = options?.model || (MODEL.startsWith('gpt-5') ? undefined : MODEL)
+  const preferredModel = options?.model ?? MODEL
   const tryImageModels = [
     preferredModel,
     'gpt-4o',
