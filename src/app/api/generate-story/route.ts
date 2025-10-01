@@ -45,9 +45,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract characters from story
+    // Development mode optimization: reduce character count for faster testing
+    const isDevMode = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true'
+    const maxSecondaryCharacters = isDevMode ? 2 : 3
+
     let characters: Array<{ name: string; role: string; importance: number }> = []
     try {
       characters = await extractStoryCharacters(storyText, quizData.childName)
+      // Limit characters based on environment
+      characters = characters.slice(0, maxSecondaryCharacters)
       console.log(`Extracted ${characters.length} secondary characters:`, characters.map(c => c.name).join(', '))
     } catch (e: any) {
       console.warn('Character extraction failed, continuing without secondary characters:', e?.message)
@@ -65,24 +71,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Character profile generation failed: ${msg}` }, { status: 500 })
     }
 
-    // Generate secondary character profiles
+    // Generate secondary character profiles (in parallel for speed)
     const secondaryProfiles: Array<{ name: string; profile: string }> = []
-    for (let i = 0; i < characters.length; i++) {
-      const char = characters[i]
-      try {
-        const profile = await generateSecondaryCharacterProfile(
-          char.name,
-          char.role,
-          storyText,
-          quizData.childName,
-          quizData.childAge
-        )
-        secondaryProfiles.push({ name: char.name, profile })
-        console.log(`Generated profile for ${char.name} (${i + 1}/${characters.length})`)
-      } catch (e: any) {
-        console.warn(`Failed to generate profile for ${char.name}:`, e?.message)
-        // Continue without this character's profile - not critical
-      }
+    if (characters.length > 0) {
+      const results = await Promise.allSettled(
+        characters.map(async (char) => {
+          const profile = await generateSecondaryCharacterProfile(
+            char.name,
+            char.role,
+            storyText,
+            quizData.childName,
+            quizData.childAge
+          )
+          return { name: char.name, profile }
+        })
+      )
+
+      // Collect successful profiles
+      results.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          secondaryProfiles.push(result.value)
+          console.log(`Generated profile for ${result.value.name}`)
+        } else {
+          console.warn(`Failed to generate profile for ${characters[i].name}:`, result.reason?.message)
+        }
+      })
     }
 
     // Create unified character design document
@@ -91,14 +104,17 @@ export async function POST(request: NextRequest) {
       secondaryProfiles
     )
 
-    // Split into up to 10 pages
+    // Split into pages
     const paragraphs = storyText
       .split('\n\n')
       .map(p => p.trim())
       .filter(Boolean)
-    const pagesText = paragraphs.length >= 10
-      ? paragraphs.slice(0, 10)
-      : [...paragraphs, ...Array.from({ length: 10 - paragraphs.length }, () => '')]
+
+    // Development mode: generate fewer images for faster testing
+    const targetPageCount = isDevMode ? 5 : 10
+    const pagesText = paragraphs.length >= targetPageCount
+      ? paragraphs.slice(0, targetPageCount)
+      : [...paragraphs.slice(0, targetPageCount), ...Array.from({ length: targetPageCount - Math.min(paragraphs.length, targetPageCount) }, () => '')]
 
     // Generate an image for each page with limited concurrency
     const tone = getStoryTypeDescription(quizData.storyType)

@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      const startTime = Date.now()
       try {
         const quizDataRaw: QuizData = await request.json()
         const quizData = sanitizeQuizData(quizDataRaw) as QuizData
@@ -80,9 +81,15 @@ export async function POST(request: NextRequest) {
           totalSteps: 5
         })
 
+        // Development mode optimization: reduce character count for faster testing
+        const isDevMode = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true'
+        const maxSecondaryCharacters = isDevMode ? 2 : 3
+
         let characters: Array<{ name: string; role: string; importance: number }> = []
         try {
           characters = await extractStoryCharacters(storyText, quizData.childName)
+          // Limit characters based on environment
+          characters = characters.slice(0, maxSecondaryCharacters)
           console.log(`Extracted ${characters.length} secondary characters:`, characters.map(c => c.name).join(', '))
         } catch (e: any) {
           console.warn('Character extraction failed, continuing without secondary characters:', e?.message)
@@ -110,7 +117,7 @@ export async function POST(request: NextRequest) {
           return
         }
 
-        // STAGE 4: Generate secondary character profiles
+        // STAGE 4: Generate secondary character profiles (in parallel for speed)
         const secondaryProfiles: Array<{ name: string; profile: string }> = []
         if (characters.length > 0) {
           sendEvent(controller, {
@@ -121,9 +128,10 @@ export async function POST(request: NextRequest) {
             totalSteps: 5
           })
 
-          for (let i = 0; i < characters.length; i++) {
-            const char = characters[i]
-            try {
+          // Generate all profiles in parallel with concurrency limit
+          const concurrencyLimit = 3
+          const results = await Promise.allSettled(
+            characters.map(async (char) => {
               const profile = await generateSecondaryCharacterProfile(
                 char.name,
                 char.role,
@@ -131,13 +139,19 @@ export async function POST(request: NextRequest) {
                 quizData.childName,
                 quizData.childAge
               )
-              secondaryProfiles.push({ name: char.name, profile })
-              console.log(`Generated profile for ${char.name} (${i + 1}/${characters.length})`)
-            } catch (e: any) {
-              console.warn(`Failed to generate profile for ${char.name}:`, e?.message)
-              // Continue without this character's profile - not critical
+              return { name: char.name, profile }
+            })
+          )
+
+          // Collect successful profiles
+          results.forEach((result, i) => {
+            if (result.status === 'fulfilled') {
+              secondaryProfiles.push(result.value)
+              console.log(`Generated profile for ${result.value.name}`)
+            } else {
+              console.warn(`Failed to generate profile for ${characters[i].name}:`, result.reason?.message)
             }
-          }
+          })
         }
 
         // Create unified character design document
@@ -151,9 +165,12 @@ export async function POST(request: NextRequest) {
           .split('\n\n')
           .map(p => p.trim())
           .filter(Boolean)
-        const pagesText = paragraphs.length >= 10
-          ? paragraphs.slice(0, 10)
-          : [...paragraphs, ...Array.from({ length: 10 - paragraphs.length }, () => '')]
+
+        // Development mode: generate fewer images for faster testing
+        const targetPageCount = isDevMode ? 5 : 10
+        const pagesText = paragraphs.length >= targetPageCount
+          ? paragraphs.slice(0, targetPageCount)
+          : [...paragraphs.slice(0, targetPageCount), ...Array.from({ length: targetPageCount - Math.min(paragraphs.length, targetPageCount) }, () => '')]
 
         // STAGE 5: Generate images with progress updates
         const tone = getStoryTypeDescription(quizData.storyType)
@@ -219,6 +236,12 @@ ARTISTIC DIRECTION:
         }
 
         const pages = pagesText.map((text, idx) => ({ text, imageBase64: results[idx] }))
+
+        const elapsed = Date.now() - startTime
+        const mode = isDevMode ? 'dev' : 'production'
+        console.log(`[${mode}] Story generation complete: ${elapsed}ms (${Math.round(elapsed / 1000)}s)`)
+        console.log(`  - Characters: ${characters.length} secondary`)
+        console.log(`  - Images: ${pages.length} pages`)
 
         // Send complete event
         sendEvent(controller, {

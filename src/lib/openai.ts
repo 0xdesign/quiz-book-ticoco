@@ -335,7 +335,7 @@ Rules:
 - Exclude ${mainCharacterName} from the list
 - Exclude generic background characters (e.g., "other children", "people in the park")
 - Include only characters with speaking roles or significant presence
-- Limit to top 6 most important characters
+- Limit to top 3 most important characters (quality over quantity)
 - Return valid JSON only, no markdown or explanation`
 
   const tryModels = [opts?.model || MODEL, 'gpt-4.1', 'gpt-4o-mini']
@@ -385,10 +385,10 @@ Rules:
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     const characters = JSON.parse(cleaned) as Array<{ name: string; role: string; importance: number }>
 
-    // Sort by importance and take top 6
+    // Sort by importance and take top 3 (optimized for performance)
     return characters
       .sort((a, b) => b.importance - a.importance)
-      .slice(0, 6)
+      .slice(0, 3)
   } catch (err) {
     console.error('Failed to parse character JSON:', text)
     throw new Error('Failed to parse character data from AI response')
@@ -525,16 +525,13 @@ export async function generateImage(
   const size = options?.size || IMG_SIZE
   const format = options?.format || IMG_FORMAT
 
-  // GPT-5 with image_generation tool via Responses API
+  // Image generation via Responses API - only use models that support image_generation tool
   const tool: any = { type: 'image_generation' }
-  const preferredModel = options?.model ?? MODEL
+  // Only use vision/multimodal models (gpt-4o family) - text-only models (gpt-4.1, gpt-5) don't support images
   const tryImageModels = [
-    preferredModel,
     'gpt-4o',
-    'gpt-4.1',
-    'gpt-4o-mini',
-    'gpt-4.1-mini'
-  ].filter(Boolean) as string[]
+    'gpt-4o-mini'
+  ]
   let response: any
   let lastErr: any
   for (const m of tryImageModels) {
